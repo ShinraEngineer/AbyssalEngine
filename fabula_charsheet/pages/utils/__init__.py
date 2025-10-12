@@ -32,6 +32,7 @@ from .common import (
     add_bond,
     remove_bond,
     upgrade_item,
+    colored_attr,
 )
 
 from .view_page_actions import (
@@ -64,7 +65,7 @@ from .preview_page_actions import (
     edit_class,
     edit_identity,
     edit_attributes,
-    avatar_uploader
+    avatar_uploader,
 )
 
 from .loader_page_actions import delete_character
