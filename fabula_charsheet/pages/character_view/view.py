@@ -8,7 +8,8 @@ from pages.utils import WeaponTableWriter, ArmorTableWriter, SkillTableWriter, S
     AccessoryTableWriter, ItemTableWriter, TherioformTableWriter, ShieldTableWriter, BondTableWriter, ArcanumTableWriter, \
     show_martial, set_view_state, get_avatar_path, avatar_update, level_up, add_chimerist_spell, \
     remove_chimerist_spell, add_item, remove_item, unequip_item, add_heroic_skill, add_spell, add_bond, remove_bond, \
-    increase_attribute, add_therioform, add_dance, add_arcanum, manifest_therioform, display_equipped_item, add_invention
+    increase_attribute, add_therioform, add_dance, add_arcanum, manifest_therioform, display_equipped_item, add_invention, \
+    colored_attr
 from pages.character_view.view_state import ViewState
 
 
@@ -309,12 +310,6 @@ def build(controller: CharacterController):
                         controller.remove_status(stat)
 
             minus_changes = controller.apply_status()
-            for attribute, value in minus_changes.items():
-                if value > 0:
-                    st.toast(f"{loc.msg_negative_status_change.format(
-                        attribute=attribute.localized_name(loc),
-                        value=value,
-                    )}")
 
             st.markdown(f"##### {loc.page_view_bonus_to_attributes}")
             col1, col2 = st.columns(2)
@@ -329,22 +324,22 @@ def build(controller: CharacterController):
                         controller.state.improved_attributes.remove(attribute)
 
             plus_changes = controller.apply_attribute_bonus()
-            for attribute, value in plus_changes.items():
-                if value > 0:
-                    st.toast(f"{loc.msg_positive_status_change.format(
-                        attribute=attribute.localized_name(loc),
-                        value=value,
-                    )}")
+
             if st.button(loc.page_view_refresh_attributes):
                 st.rerun()
 
             with att_col1:
-                st.write(f"**{loc.attr_dexterity}**: {loc.dice_prefix}{controller.character.dexterity.current}")
-                st.write(f"**{loc.attr_might}**: {loc.dice_prefix}{controller.character.might.current}")
+                st.markdown(colored_attr(loc.attr_dexterity, loc.dice_prefix, controller.character.dexterity.current,
+                                         controller.character.dexterity.base), unsafe_allow_html=True)
+                st.markdown(colored_attr(loc.attr_might, loc.dice_prefix, controller.character.might.current,
+                                         controller.character.might.base), unsafe_allow_html=True)
                 st.markdown(f"**{loc.column_defense}**: {controller.defense()}")
+
             with att_col2:
-                st.write(f"**{loc.attr_insight}**: {loc.dice_prefix}{controller.character.insight.current}")
-                st.write(f"**{loc.attr_willpower}**: {loc.dice_prefix}{controller.character.willpower.current}")
+                st.markdown(colored_attr(loc.attr_insight, loc.dice_prefix, controller.character.insight.current,
+                                         controller.character.insight.base), unsafe_allow_html=True)
+                st.markdown(colored_attr(loc.attr_willpower, loc.dice_prefix, controller.character.willpower.current,
+                                         controller.character.willpower.base), unsafe_allow_html=True)
                 st.markdown(f"**{loc.column_magic_defense}**: {controller.magic_defense()}")
 
             with initiative_column:

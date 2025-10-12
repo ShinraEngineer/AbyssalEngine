@@ -331,17 +331,10 @@ class CharacterController:
         if Status.weak in self.state.statuses:
             mig_malus -= 2
 
-        self.character.insight.current = max(6, self.character.insight.base + ins_malus)
-        self.character.dexterity.current = max(6, self.character.dexterity.base + dex_malus)
-        self.character.willpower.current = max(6, self.character.willpower.base + wlp_malus)
-        self.character.might.current = max(6, self.character.might.base + mig_malus)
-
-        return {
-            AttributeName.dexterity: self.character.dexterity.base - self.character.dexterity.current,
-            AttributeName.might: self.character.might.base - self.character.might.current,
-            AttributeName.insight: self.character.insight.base - self.character.insight.current,
-            AttributeName.willpower: self.character.willpower.base - self.character.willpower.current,
-        }
+        self.character.insight.current = max(6, self.character.insight.current + ins_malus)
+        self.character.dexterity.current = max(6, self.character.dexterity.current + dex_malus)
+        self.character.willpower.current = max(6, self.character.willpower.current + wlp_malus)
+        self.character.might.current = max(6, self.character.might.current + mig_malus)
 
     def apply_attribute_bonus(self):
         dex_bonus = 0
@@ -369,17 +362,10 @@ class CharacterController:
                 case "tachytheria":
                     dex_bonus += 2
 
-        self.character.insight.current = min(12, self.character.insight.base + ins_bonus)
-        self.character.dexterity.current = min(12, self.character.dexterity.base + dex_bonus)
-        self.character.willpower.current = min(12, self.character.willpower.base + wlp_bonus)
-        self.character.might.current = min(12, self.character.might.base + mig_bonus)
-
-        return {
-            AttributeName.dexterity: self.character.dexterity.current - self.character.dexterity.base,
-            AttributeName.might: self.character.might.current - self.character.might.base,
-            AttributeName.insight: self.character.insight.current - self.character.insight.base,
-            AttributeName.willpower: self.character.willpower.current - self.character.willpower.base,
-        }
+        self.character.insight.current = min(12, self.character.insight.current + ins_bonus)
+        self.character.dexterity.current = min(12, self.character.dexterity.current + dex_bonus)
+        self.character.willpower.current = min(12, self.character.willpower.current + wlp_bonus)
+        self.character.might.current = min(12, self.character.might.current + mig_bonus)
 
     def crisis_value(self) -> int:
         return math.floor(self.max_hp() / 2)

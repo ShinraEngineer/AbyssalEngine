@@ -277,3 +277,13 @@ def apply_quality_effects(item: Item, selected_quality: Quality):
             item.bonus_magic_defense += 1
         case "initiative_up":
             item.bonus_initiative += 4
+
+
+def colored_attr(name, prefix, current, base):
+    if current > base:
+        color = "green"
+    elif current < base:
+        color = "red"
+    else:
+        color = "black"
+    return f"**{name}**: <span style='color:{color}'>{prefix}{current}</span>"
