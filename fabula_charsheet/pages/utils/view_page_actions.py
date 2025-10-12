@@ -501,6 +501,8 @@ def manifest_therioform(controller: CharacterController, loc: LocNamespace):
     if skill == "theriomorphosis":
         available_therioforms = [t for t in controller.character.special.therioforms]
         can_manifest_number = 2
+        if controller.character.has_heroic_skill(HeroicSkillName.greater_theriomorphosis):
+            can_manifest_number = 3
     elif skill == "genoclepsis":
         available_therioforms = sorted(c.COMPENDIUM.therioforms, key=lambda x: x.localized_name(loc))
         can_manifest_number = controller.get_skill_level(ClassName.mutant, "genoclepsis")
