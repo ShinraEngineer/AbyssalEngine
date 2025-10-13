@@ -309,8 +309,6 @@ def build(controller: CharacterController):
                     else:
                         controller.remove_status(stat)
 
-            minus_changes = controller.apply_status()
-
             st.markdown(f"##### {loc.page_view_bonus_to_attributes}")
             col1, col2 = st.columns(2)
             for idx, attribute in enumerate(AttributeName):
@@ -323,7 +321,7 @@ def build(controller: CharacterController):
                     if not checked and attribute in controller.state.improved_attributes:
                         controller.state.improved_attributes.remove(attribute)
 
-            plus_changes = controller.apply_attribute_bonus()
+            controller.apply_status()
 
             if st.button(loc.page_view_refresh_attributes):
                 st.rerun()
