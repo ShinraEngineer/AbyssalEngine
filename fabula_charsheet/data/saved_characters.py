@@ -1,38 +1,46 @@
-from __future__ import annotations
+import os
+import pickle
+import streamlit as st
 
-from dataclasses import dataclass
-from pathlib import Path
+DATA_FILE = "characters.pkl"
 
-import yaml
+class SavedCharacters:
+    def __init__(self):
+        self.char_list = self.load_data()
 
-from data.models import Character
+    def load_data(self):
+        """Loads the character list from disk."""
+        if os.path.exists(DATA_FILE):
+            try:
+                with open(DATA_FILE, "rb") as f:
+                    return pickle.load(f)
+            except Exception as e:
+                print(f"Error loading saved characters: {e}")
+                return []
+        return []
 
+    def save_data(self):
+        """Saves the current character list to disk."""
+        try:
+            with open(DATA_FILE, "wb") as f:
+                pickle.dump(self.char_list, f)
+        except Exception as e:
+            print(f"Error saving characters: {e}")
 
-SAVED_CHARS: SavedChars | None = None
+    def add_character(self, character):
+        self.char_list.append(character)
+        self.save_data()
 
+    def update_character(self, character):
+        for i, c in enumerate(self.char_list):
+            if c.id == character.id:
+                self.char_list[i] = character
+                break
+        self.save_data()
 
-@dataclass(frozen=True)
-class SavedChars:
-    char_list: list[Character]
+    def delete_character(self, character_id):
+        self.char_list = [c for c in self.char_list if c.id != character_id]
+        self.save_data()
 
-
-def init(saved_chars_directory: Path) -> None:
-    global SAVED_CHARS
-    if SAVED_CHARS is not None:
-        return
-
-    char_list = []
-    for yaml_file in saved_chars_directory.glob('*.yaml'):
-        with yaml_file.open(encoding='utf8') as f:
-            raw_char = yaml.load(f, Loader=yaml.Loader)
-            char_list.append(Character(**dict(raw_char)))
-
-    s = SavedChars(
-        char_list=char_list,
-    )
-    SAVED_CHARS = s
-
-
-if __name__ == "__main__":
-    init(Path("fabula_charsheet/characters"))
-    print(SAVED_CHARS)
+# Global singleton instance
+SAVED_CHARS = SavedCharacters()

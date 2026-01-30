@@ -1,3 +1,6 @@
+# FILE: fabula_charsheet/pages/character_view/view.py
+# AUTHOR: Rose (Virtual Assistant) // SCook (Computer Systems Engineering)
+
 import sys
 import os
 import html
@@ -6,8 +9,9 @@ import re
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 import streamlit as st
-import pdf_export
+import custom_pdf  # NEW IMPORT: Custom PDF Generator
 import config
+from data.saved_characters import SAVED_CHARS # NEW IMPORT: Persistence
 
 from data.models import Status, AttributeName, Weapon, GripType, WeaponCategory, \
     WeaponRange, ClassName, LocNamespace, HeroicSkillName
@@ -46,6 +50,13 @@ CLASS_PROFICIENCIES = {
 def build(controller: CharacterController):
     st.set_page_config(layout="wide")
     loc: LocNamespace = st.session_state.localizator.get(st.session_state.language)
+
+    # --- SAVE ON LOAD ---
+    # Automatically save character state to disk whenever this page loads
+    try:
+        SAVED_CHARS.update_character(controller.character)
+    except Exception as e:
+        print(f"Auto-save failed: {e}")
 
     @st.dialog(loc.page_view_avatar_update_dialog_title)
     def avatar_update_dialog(controller: CharacterController, loc: LocNamespace):
@@ -549,211 +560,28 @@ def build(controller: CharacterController):
             InventionTableWriter(loc).write_in_columns(added_inventions)
             st.divider()
 
-        # --- PDF EXPORT SECTION ---
+        # --- PDF EXPORT SECTION (CUSTOM) ---
         st.subheader("🛠️ System Tools")
-        st.write("Export your character to a printable PDF file.")
+        st.write("Export your character to a custom PDF sheet.")
 
-        # --- DEBUG TOOL: SHOW PDF FIELDS ---
-        if st.checkbox("🔍 Debug: Show All PDF Field Names (Developer Only)"):
+        if st.button("📄 Generate Custom PDF"):
             try:
-                # Use the function from pdf_export, but we need to access PdfReader directly
-                # Importing explicitly to avoid "module object has no attribute PdfReader"
-                from pypdf import PdfReader as DebugReader
-                reader = DebugReader("fabula_charsheet/template_sheet.pdf")
-                fields = reader.get_fields()
-                if fields:
-                    st.write("### PDF Field List")
-                    st.json(list(fields.keys()))
-                else:
-                    st.warning("No fields found in the PDF.")
-            except Exception as e:
-                st.error(f"Could not read fields: {e}")
-        # ------------------------------------
-
-        if st.button("📄 Generate PDF Character Sheet"):
-            # --- DATA PREPARATION ---
-            
-            # Helper to clean strings
-            def clean_str(val):
-                if not val: return ""
-                if hasattr(val, "localized_name"):
-                    return str(val.localized_name(loc)).replace("_", " ").title()
-                return str(val).replace("_", " ").title()
-
-            # Helper to safely get description (Deep Search + Localized + CLEANING)
-            def clean_desc(obj):
-                # 1. Find the text
-                raw_text = ""
-                if hasattr(obj, "localized_description"):
-                    try:
-                        raw_text = str(obj.localized_description(loc))
-                    except: pass
-                
-                if not raw_text:
-                    for attr in ["description", "text", "effect", "rules", "rules_text", "summary"]:
-                        val = getattr(obj, attr, None)
-                        if val: 
-                            raw_text = str(val)
-                            break
-                
-                if not raw_text: return ""
-
-                # 2. Decode HTML Entities (fixes &nbsp;)
-                text = html.unescape(raw_text)
-
-                # 3. Strip Markdown/Weird Chars
-                # Remove bold ** or __
-                text = re.sub(r'\*\*|__', '', text)
-                # Replace special brackets [ ]
-                text = text.replace("【", "[").replace("】", "]")
-                return text
-
-            # Helper for MP cost
-            def get_mp(obj):
-                for attr in ["mp", "cost", "mp_cost", "mind_points", "mp_text"]:
-                    val = getattr(obj, attr, None)
-                    if val is not None: return str(val)
-                return "0"
-
-            eq = controller.character.inventory.equipped
-            main_hand_name = clean_str(eq.main_hand) if eq.main_hand else ""
-            off_hand_name = clean_str(eq.off_hand) if eq.off_hand else ""
-            armor_name = clean_str(eq.armor) if eq.armor else ""
-
-            # 2. Fix Initiative
-            raw_init = str(controller.initiative())
-            init_mod = "0"
-            if "-" in raw_init:
-                parts = raw_init.split("-")
-                if parts[-1].strip().isdigit():
-                    init_mod = "-" + parts[-1].strip()
-            elif "+" in raw_init:
-                parts = raw_init.split("+")
-                if parts[-1].strip().isdigit():
-                    init_mod = "+" + parts[-1].strip()
-
-            # 3. Check Proficiencies (Checkbox Logic)
-            has_armor = False
-            has_shield = False
-            has_melee = False
-            has_ranged = False
-
-            for c in controller.character.classes:
-                c_name = str(c.name.name if hasattr(c.name, "name") else c.name).replace("_", " ").title()
-                
-                found_profs = []
-                for key, profs in CLASS_PROFICIENCIES.items():
-                    if key.lower() == c_name.lower():
-                        found_profs = profs
-                        break
-                
-                if "armor" in found_profs: has_armor = True
-                if "shield" in found_profs: has_shield = True
-                if "melee" in found_profs: has_melee = True
-                if "ranged" in found_profs: has_ranged = True
-
-            # 4. Gather Classes & Skills
-            classes_info_list = []
-            for c in controller.character.classes:
-                c_name_str = c.name.localized_name(loc)
-                full_name = f"{c_name_str} (Lv {c.class_level()})"
-                
-                active_skills = [s for s in c.skills if s.current_level > 0]
-                skills_text = ""
-                for skill in active_skills:
-                    s_name = skill.name 
-                    if hasattr(s_name, "localized_name"): 
-                        s_name = s_name.localized_name(loc)
-                    
-                    s_desc = clean_desc(skill)
-                    
-                    skills_text += f"- {clean_str(s_name)} (Lv {skill.current_level}): {s_desc}\n"
-                
-                classes_info_list.append({
-                    "name": full_name,
-                    "skills": skills_text
-                })
-
-            # 5. Gather Spells
-            spells_list = []
-            for class_key, spell_group in controller.character.spells.items():
-                for spell in spell_group:
-                    s_name = getattr(spell, "name", "Unknown Spell")
-                    if hasattr(s_name, "localized_name"): 
-                         s_name = s_name.localized_name(loc)
-                    
-                    spells_list.append({
-                        "name": clean_str(s_name),
-                        "mp": get_mp(spell),
-                        "target": clean_str(getattr(spell, "target", "")),
-                        "duration": clean_str(getattr(spell, "duration", "")),
-                        "effect": clean_desc(spell)
-                    })
-
-            # --- BUILD PDF DATA ---
-            pdf_data = {
-                "name": controller.character.name,
-                "identity": controller.character.identity,
-                "theme": controller.character.theme,
-                "origin": controller.character.origin,
-                "level": controller.character.level,
-                "fabula_points": 0,
-                "zenit": controller.character.inventory.zenit,
-                "exp": 0, 
-                
-                # Attributes
-                "dex": controller.character.dexterity.base,
-                "ins": controller.character.insight.base,
-                "mig": controller.character.might.base,
-                "wil": controller.character.willpower.base,
-                
-                # Stats
-                "hp_current": controller.current_hp(),
-                "hp_max": controller.max_hp(),
-                "mp_current": controller.current_mp(),
-                "mp_max": controller.max_mp(),
-                "ip_current": controller.current_ip(),
-                "ip_max": controller.max_ip(),
-                
-                # Corrections
-                "init": init_mod,
-                "def": controller.defense(),
-                "mdef": controller.magic_defense(),
-                
-                # Equipment (Cleaned)
-                "main_hand": main_hand_name, 
-                "off_hand": off_hand_name,
-                "armor": armor_name,
-                
-                # Proficiencies
-                "prof_armor": has_armor,
-                "prof_shield": has_shield,
-                "prof_melee": has_melee,
-                "prof_ranged": has_ranged,
-
-                # Lists
-                "classes_info": classes_info_list, 
-                "spells": spells_list
-            }
-
-            try:
-                pdf_file = pdf_export.generate_character_pdf("fabula_charsheet/template_sheet.pdf", pdf_data)
+                # Call the new generator
+                pdf_file = custom_pdf.create_custom_sheet(controller.character, loc)
                 
                 st.download_button(
-                    label="📥 Download PDF",
+                    label="📥 Download Character Sheet",
                     data=pdf_file,
-                   file_name=f"{controller.character.name}_Sheet.pdf",
+                    file_name=f"{controller.character.name}_CustomSheet.pdf",
                     mime="application/pdf"
                 )
-                st.success("PDF Generated! Click above to download.")
+                st.success("Custom PDF Generated successfully!")
                 
-            except FileNotFoundError:
-                st.error("Error: 'template_sheet.pdf' not found. Please upload it to the 'fabula_charsheet' folder.")
-            except NameError:
-                 st.error("Error: 'pdf_export' module not found. Did you add the import at the top of view.py?")
             except Exception as e:
-                st.error(f"An error occurred: {e}")
-        
+                st.error(f"Error generating PDF: {e}")
+                # Optional: Show full traceback if needed
+                # st.exception(e) 
+
         st.divider()
 
     col1, col2 = st.columns([0.2, 0.8])
@@ -761,6 +589,10 @@ def build(controller: CharacterController):
         if st.button(loc.save_current_character_button):
             controller.dump_character()
             controller.dump_state()
+            # Explicit save to disk for persistence
+            SAVED_CHARS.update_character(controller.character)
+            st.toast("Character saved to disk!")
+            
     with col2:
         if st.button(loc.load_another_character_button):
             set_view_state(ViewState.load)
