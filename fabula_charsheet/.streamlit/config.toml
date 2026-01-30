@@ -1,2 +1,5 @@
 [theme]
-base="light"
+base = "dark"
+primaryColor = "#ff4b4b"  # Default Streamlit red, change if you want a specific "Abyssal" color
+backgroundColor = "#0e1117" # Default dark background
+secondaryBackgroundColor = "#262730" # Default dark sidebar
