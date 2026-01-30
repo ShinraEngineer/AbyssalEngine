@@ -533,9 +533,9 @@ def build(controller: CharacterController):
 
             # Helper to get equipment names safely
             eq = controller.character.inventory.equipped
-            main_hand_name = eq.main_hand.name.localized_name(loc) if eq.main_hand else ""
-            off_hand_name = eq.off_hand.name.localized_name(loc) if eq.off_hand else ""
-            armor_name = eq.armor.name.localized_name(loc) if eq.armor else ""
+            main_hand_name = eq.main_hand.name if eq.main_hand else ""
+            off_hand_name = eq.off_hand.name if eq.off_hand else ""
+            armor_name = eq.armor.name if eq.armor else ""
 
             # Map the controller data to the keys expected by pdf_export.py
             pdf_data = {
