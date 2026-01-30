@@ -720,7 +720,7 @@ def build(controller: CharacterController):
                 st.download_button(
                     label="📥 Download PDF",
                     data=pdf_file,
-                    file_name=f"{controller.cracter.name}_Sheet.pdf",
+                    file_name=f"{controller.character.name}_Sheet.pdf",
                     mime="application/pdf"
                 )
                 st.success("PDF Generated! Click above to download.")

@@ -19,7 +19,8 @@ def build(controller: CharacterController):
     st.title(loc.page_load_character_title)
 
     if s.SAVED_CHARS.char_list:
-        for char in s.SAVED_CHARS.char_list:
+        # FIX: Use enumerate to guarantee unique keys even if IDs are duplicated
+        for idx, char in enumerate(s.SAVED_CHARS.char_list):
             col1, col2, col3 = st.columns(3)
             with col1:
                 avatar_path = get_avatar_path(char.id)
@@ -32,15 +33,17 @@ def build(controller: CharacterController):
             with col3:
                 load_col, delete_col = st.columns(2)
                 with load_col:
-                    if st.button(loc.page_load_character_load_button, key=f"{char.id}-loader"):
+                    # Append index to key to prevent DuplicateElementKey error
+                    if st.button(loc.page_load_character_load_button, key=f"{char.id}-loader-{idx}"):
                         controller.character = char
                         try:
                             controller.load_state()
                         except Exception as e:
                             st.toast(e)
                         set_view_state(ViewState.view)
+                        st.rerun()
                 with delete_col:
-                    if st.button(loc.page_load_character_delete_button, key=f"{char.id}-delete"):
+                    if st.button(loc.page_load_character_delete_button, key=f"{char.id}-delete-{idx}"):
                         delete_character_dialog(char, loc)
 
             st.divider()
