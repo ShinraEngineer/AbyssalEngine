@@ -3,7 +3,7 @@ name = "abyssal-engine"
 version = "0.1.0"
 description = "Fabula Ultima Charsheet"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10, <4.0"   # <--- ADD THE "<4.0" HERE
 dependencies = [
     "pydantic>=2.11.7",
     "pandas>=2.0.0",
