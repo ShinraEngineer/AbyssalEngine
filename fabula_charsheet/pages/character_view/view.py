@@ -1,6 +1,7 @@
 import streamlit as st
-
+import pdf_export
 import config
+
 from data.models import Status, AttributeName, Weapon, GripType, WeaponCategory, \
     WeaponRange, ClassName, LocNamespace, HeroicSkillName
 from pages.controller import CharacterController
@@ -469,7 +470,6 @@ def build(controller: CharacterController):
             AccessoryTableWriter(loc).write_in_columns(backpack.accessories)
         if backpack.other:
             ItemTableWriter(loc).write_in_columns(backpack.other)
-
     # Special
     with tab5:
         st.divider()
