@@ -532,19 +532,33 @@ def build(controller: CharacterController):
         if st.button("📄 Generate PDF Character Sheet"):
             # --- DATA PREPARATION ---
             
-            # 1. Clean Equipment Names (Title Case, remove underscores)
-            def clean_name(item):
-                if not item: return ""
-                raw_name = item.name if hasattr(item, "name") else str(item)
-                return raw_name.replace("_", " ").title()
+            # Helper to clean strings (targets, durations, names)
+            def clean_str(val):
+                if not val: return ""
+                return str(val).replace("_", " ").title()
+
+            # Helper to safely get description/text/rules
+            def get_desc(obj):
+                # Try common attribute names for description text
+                for attr in ["description", "text", "effect", "rules", "rules_text", "summary"]:
+                    val = getattr(obj, attr, None)
+                    if val: return str(val)
+                return ""
+
+            # Helper to get MP cost
+            def get_mp(obj):
+                # Try common attribute names for MP
+                for attr in ["mp", "cost", "mp_cost", "mind_points", "mp_text"]:
+                    val = getattr(obj, attr, None)
+                    if val is not None: return str(val)
+                return "0"
 
             eq = controller.character.inventory.equipped
-            main_hand_name = clean_name(eq.main_hand)
-            off_hand_name = clean_name(eq.off_hand)
-            armor_name = clean_name(eq.armor)
+            main_hand_name = clean_str(eq.main_hand.name) if eq.main_hand else ""
+            off_hand_name = clean_str(eq.off_hand.name) if eq.off_hand else ""
+            armor_name = clean_str(eq.armor.name) if eq.armor else ""
 
             # 2. Fix Initiative (Extract modifier only)
-            # Transforms "d8 + d8 - 2" -> "-2"
             raw_init = str(controller.initiative())
             init_mod = "0"
             if "-" in raw_init:
@@ -562,16 +576,15 @@ def build(controller: CharacterController):
                 c_name_str = c.name.localized_name(loc)
                 full_name = f"{c_name_str} (Lv {c.class_level()})"
                 
-                # Gather active skills into text block
+                # Gather active skills
                 active_skills = [s for s in c.skills if s.current_level > 0]
                 skills_text = ""
                 for skill in active_skills:
-                    s_name = skill.name # Use localized if available in your model
-                    # Try to find a description attribute
-                    s_desc = getattr(skill, "description", getattr(skill, "text", ""))
+                    s_name = skill.name # Use localized if available
+                    s_desc = get_desc(skill)
                     
                     # Using a dash '-' instead of bullet to prevent encoding errors
-                    skills_text += f"- {s_name.replace('_', ' ').title()} (Lv {skill.current_level}): {s_desc}\n"
+                    skills_text += f"- {clean_str(s_name)} (Lv {skill.current_level}): {s_desc}\n"
                 
                 classes_info_list.append({
                     "name": full_name,
@@ -580,33 +593,18 @@ def build(controller: CharacterController):
 
             # 4. Gather Spells (Robust)
             spells_list = []
-            # 'controller.character.spells' is a Dict[ClassName, List[Spell]]
             for class_key, spell_group in controller.character.spells.items():
                 for spell in spell_group:
-                    # Safe attribute access using getattr to prevent crashes
-                    # Name: default to string, clean formatting
                     s_name = getattr(spell, "name", "Unknown Spell")
-                    if hasattr(s_name, "localized_name"): # Handle if name is an Enum
+                    if hasattr(s_name, "localized_name"): 
                          s_name = s_name.localized_name(loc)
                     
-                    # MP: Try 'mp', then 'cost', then default to '0'
-                    s_mp = getattr(spell, "mp", getattr(spell, "cost", "0"))
-                    
-                    # Target: Try 'target'
-                    s_target = getattr(spell, "target", "")
-                    
-                    # Duration: Try 'duration'
-                    s_duration = getattr(spell, "duration", "")
-                    
-                    # Effect: Try 'description', then 'effect', then 'text'
-                    s_effect = getattr(spell, "description", getattr(spell, "effect", getattr(spell, "text", "")))
-
                     spells_list.append({
-                        "name": str(s_name).replace("_", " ").title(),
-                        "mp": str(s_mp),
-                        "target": str(s_target),
-                        "duration": str(s_duration),
-                        "effect": str(s_effect)
+                        "name": clean_str(s_name),
+                        "mp": get_mp(spell),
+                        "target": clean_str(getattr(spell, "target", "")),
+                        "duration": clean_str(getattr(spell, "duration", "")),
+                        "effect": get_desc(spell)
                     })
 
             # --- BUILD PDF DATA ---
@@ -635,7 +633,7 @@ def build(controller: CharacterController):
                 "ip_max": controller.max_ip(),
                 
                 # Corrections
-                "init": init_mod,          # Fixed Initiative
+                "init": init_mod,
                 "def": controller.defense(),
                 "mdef": controller.magic_defense(),
                 
@@ -662,7 +660,7 @@ def build(controller: CharacterController):
                 st.success("PDF Generated! Click above to download.")
                 
             except FileNotFoundError:
-                st.error("Error: 'template_sheet.pdf' not found. Please upload it to the 'fabula_charsheet' folder.")
+              st.error("Error: 'template_sheet.pdf' not found. Please upload it to the 'fabula_charsheet' folder.")
             except NameError:
                  st.error("Error: 'pdf_export' module not found. Did you add the import at the top of view.py?")
             except Exception as e:
