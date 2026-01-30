@@ -685,8 +685,8 @@ def build(controller: CharacterController):
                     spells_list.append({
                         "name": clean_str(s_name),
                         "mp": get_mp(spell),
-                        "target": clean_desc(getattr(spell, "target", "")),
-                        "duration": clean_desc(getattr(spell, "duration", "")),
+                        "target": clean_str(getattr(spell, "target", "")),
+                        "duration": clean_str(getattr(spell, "duration", "")),
                         "effect": clean_desc(spell)
                     })
 
@@ -742,10 +742,10 @@ def build(controller: CharacterController):
                 st.download_button(
                     label="📥 Download PDF",
                     data=pdf_file,
-                    file_name=f"{controller.character.name}_Sheet.pdf",
+                   file_name=f"{controller.character.name}_Sheet.pdf",
                     mime="application/pdf"
                 )
-              st.success("PDF Generated! Click above to download.")
+                st.success("PDF Generated! Click above to download.")
                 
             except FileNotFoundError:
                 st.error("Error: 'template_sheet.pdf' not found. Please upload it to the 'fabula_charsheet' folder.")
