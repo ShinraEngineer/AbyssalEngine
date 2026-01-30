@@ -525,19 +525,65 @@ def build(controller: CharacterController):
         st.write("Export your character to a printable PDF file.")
         
         if st.button("📄 Generate PDF Character Sheet"):
-            # Helper to format classes
-            class_list = []
-            for c in controller.character.classes:
-                c_name = c.name.localized_name(loc)
-                class_list.append(f"{c_name} (Lv {c.class_level()})")
+            # --- DATA PREPARATION ---
+            
+            # 1. Clean Equipment Names (Title Case, remove underscores)
+            def clean_name(item):
+                if not item: return ""
+                raw_name = item.name if hasattr(item, "name") else str(item)
+                return raw_name.replace("_", " ").title()
 
-            # Helper to get equipment names safely
             eq = controller.character.inventory.equipped
-            main_hand_name = eq.main_hand.name if eq.main_hand else ""
-            off_hand_name = eq.off_hand.name if eq.off_hand else ""
-            armor_name = eq.armor.name if eq.armor else ""
+            main_hand_name = clean_name(eq.main_hand)
+            off_hand_name = clean_name(eq.off_hand)
+            armor_name = clean_name(eq.armor)
 
-            # Map the controller data to the keys expected by pdf_export.py
+            # 2. Fix Initiative (Extract modifier only)
+            # Transforms "d8 + d8 - 2" -> "-2"
+            raw_init = str(controller.initiative())
+            init_mod = "0"
+            # Look for explicit plus or minus at the end of the string
+            if "-" in raw_init:
+                parts = raw_init.split("-")
+                if parts[-1].strip().isdigit():
+                    init_mod = "-" + parts[-1].strip()
+            elif "+" in raw_init:
+                parts = raw_init.split("+")
+                if parts[-1].strip().isdigit():
+                    init_mod = "+" + parts[-1].strip()
+
+            # 3. Gather Classes & Skills
+            classes_info_list = []
+            for c in controller.character.classes:
+                c_name_str = c.name.localized_name(loc)
+                full_name = f"{c_name_str} (Lv {c.class_level()})"
+                
+                # Gather active skills into text block
+                active_skills = [s for s in c.skills if s.current_level > 0]
+                skills_text = ""
+                for skill in active_skills:
+                    s_name = skill.name # Use localized if available in your model
+                    skills_text += f"• {s_name.replace('_', ' ').title()} (Lv {skill.current_level})\n"
+                
+                classes_info_list.append({
+                    "name": full_name,
+                    "skills": skills_text
+                })
+
+            # 4. Gather Spells
+            spells_list = []
+            # 'controller.character.spells' is a Dict[ClassName, List[Spell]]
+            for class_key, spell_group in controller.character.spells.items():
+                for spell in spell_group:
+                    spells_list.append({
+                        "name": spell.name.replace("_", " ").title(),
+                        "mp": str(spell.mp),
+                        "target": spell.target,
+                        "duration": spell.duration,
+                        "effect": spell.description if hasattr(spell, "description") else ""
+                    })
+
+            # --- BUILD PDF DATA ---
             pdf_data = {
                 "name": controller.character.name,
                 "identity": controller.character.identity,
@@ -554,7 +600,7 @@ def build(controller: CharacterController):
                 "mig": controller.character.might.base,
                 "wil": controller.character.willpower.base,
                 
-                # Calculated Stats
+                # Stats
                 "hp_current": controller.current_hp(),
                 "hp_max": controller.max_hp(),
                 "mp_current": controller.current_mp(),
@@ -562,15 +608,19 @@ def build(controller: CharacterController):
                 "ip_current": controller.current_ip(),
                 "ip_max": controller.max_ip(),
                 
-                "init": controller.initiative(),
+                # Corrections
+                "init": init_mod,          # Fixed Initiative
                 "def": controller.defense(),
                 "mdef": controller.magic_defense(),
                 
-                # Lists & Strings
-                "classes": class_list,
-                "main_hand": main_hand_name,
+                # Equipment (Cleaned)
+                "main_hand": main_hand_name, 
                 "off_hand": off_hand_name,
                 "armor": armor_name,
+                
+                # Lists
+                "classes_info": classes_info_list, 
+                "spells": spells_list
             }
 
             try:
@@ -592,4 +642,3 @@ def build(controller: CharacterController):
             except Exception as e:
                 st.error(f"An error occurred: {e}")
         
-        st.divider()
