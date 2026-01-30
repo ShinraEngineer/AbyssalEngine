@@ -3,9 +3,6 @@ from pypdf import PdfReader, PdfWriter
 from pypdf.generic import NameObject
 
 def generate_character_pdf(template_path, data):
-    """
-    Fills the Fabula Ultima template (all pages) with dictionary data.
-    """
     if not isinstance(data, dict):
         raise TypeError(f"Expected dictionary for 'data', got {type(data).__name__}: {data}")
 
@@ -14,16 +11,29 @@ def generate_character_pdf(template_path, data):
 
     writer.append_pages_from_reader(reader)
 
-    # Force Copy AcroForm to ensure fields are writable
+    # Force Copy AcroForm
     if "/AcroForm" in reader.root_object:
         writer.root_object[NameObject("/AcroForm")] = reader.root_object["/AcroForm"]
 
-    # 1. Base Stats Mapping (Dual Language Support)
-    # We map to BOTH "Nome" (IT) and "Name" (EN) to ensure it works on any template.
+    # --- DEBUG: PRINT FIELD NAMES TO LOGS ---
+    # Look at your Streamlit logs to see the ACTUAL internal names of your PDF
+    try:
+        if reader.get_fields():
+            print("\n=== PDF FIELDS FOUND ===")
+            for key in list(reader.get_fields().keys()):
+                print(f"Field: {key}")
+            print("========================\n")
+    except:
+        pass
+    # ----------------------------------------
+
+    # 1. Base Stats Mapping
     field_mapping = {
         # Identity
         "Nome": str(data.get("name", "")),
         "Name": str(data.get("name", "")),
+        "CharacterName": str(data.get("name", "")),
+        "Character Name": str(data.get("name", "")),
         
         "Identita": str(data.get("identity", "")),
         "Identity": str(data.get("identity", "")),
@@ -109,7 +119,7 @@ def generate_character_pdf(template_path, data):
         field_mapping[f"Class{idx}"] = cls_info.get("name", "")
         
         field_mapping[f"Info{idx}"] = cls_info.get("skills", "")
-        field_mapping[f"SkillInfo{idx}"] = cls_info.get("skills", "") # English variant guess
+        field_mapping[f"SkillInfo{idx}"] = cls_info.get("skills", "")
 
     # 3. Handle Spells
     spells = data.get("spells", [])
@@ -133,19 +143,12 @@ def generate_character_pdf(template_path, data):
         field_mapping[f"SpellEffect{idx}"] = spell.get("effect", "")
 
     # 4. Handle Checkboxes (Proficiencies)
-    # Map multiple potential field names to the checked value
+    # We create a list of potential names for each box
     prof_map = {
-        "MartialArmor": data.get("prof_armor", False),
-        "Martial Armor": data.get("prof_armor", False),
-        
-        "MartialShields": data.get("prof_shield", False),
-        "Martial Shields": data.get("prof_shield", False),
-        
-        "MartialMelee": data.get("prof_melee", False),
-        "Martial Melee Weapons": data.get("prof_melee", False), # English sheet usually full text
-        
-        "MartialRanged": data.get("prof_ranged", False),
-        "Martial Ranged Weapons": data.get("prof_ranged", False)
+        "prof_armor": ["MartialArmor", "Martial Armor", "Martial_Armor", "ArmorProficiency"],
+        "prof_shield": ["MartialShields", "Martial Shields", "Martial_Shields", "ShieldProficiency"],
+        "prof_melee": ["MartialMelee", "Martial Melee", "Martial_Melee", "Martial Melee Weapons", "MeleeProficiency"],
+        "prof_ranged": ["MartialRanged", "Martial Ranged", "Martial_Ranged", "Martial Ranged Weapons", "RangedProficiency"]
     }
 
     # Apply fields to ALL pages
@@ -154,10 +157,11 @@ def generate_character_pdf(template_path, data):
             page, field_mapping, auto_regenerate=False
         )
         
-        # Apply Checkboxes manually using NameObject('/Yes')
-        for name, checked in prof_map.items():
-            if checked:
-                writer.update_page_form_field_values(page, {name: NameObject("/Yes")})
+        # Apply Checkboxes (Try all variations)
+        for data_key, pdf_key_list in prof_map.items():
+            if data.get(data_key, False):
+                for pdf_key in pdf_key_list:
+                    writer.update_page_form_field_values(page, {pdf_key: NameObject("/Yes")})
 
     output_stream = io.BytesIO()
     writer.write(output_stream)

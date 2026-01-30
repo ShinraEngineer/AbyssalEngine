@@ -554,28 +554,39 @@ def build(controller: CharacterController):
         if st.button("📄 Generate PDF Character Sheet"):
             # --- DATA PREPARATION ---
             
-            # Helper to clean strings
-            def clean_str(val):
-                if not val: return ""
-                if hasattr(val, "localized_name"):
-                    return str(val.localized_name(loc)).replace("_", " ").title()
-                return str(val).replace("_", " ").title()
+            # 1. Clean Equipment Names
+            def clean_name(item):
+                if not item: return ""
+                raw_name = item.name if hasattr(item, "name") else str(item)
+                if hasattr(item, "localized_name"):
+                    raw_name = str(item.localized_name(loc))
+                return raw_name.replace("_", " ").title()
 
-            # Helper to safely get description (Deep Search + Localized)
-            def get_desc(obj):
-                # 1. Try localized description method (standard for this app)
+            # 2. Text Scrubber (Removes Markdown & HTML)
+            def clean_desc(obj):
+                # Find the text first
+                raw_text = ""
+                # Try localized description first
                 if hasattr(obj, "localized_description"):
                     try:
-                        return str(obj.localized_description(loc))
-                    except:
-                        pass
+                        raw_text = str(obj.localized_description(loc))
+                    except: pass
                 
-                # 2. Try standard attributes
-                for attr in ["description", "text", "effect", "rules", "rules_text", "summary"]:
-                    val = getattr(obj, attr, None)
-                    if val: return str(val)
+                # Try attributes if method failed
+                if not raw_text:
+                    for attr in ["description", "text", "effect", "rules", "rules_text", "summary"]:
+                        val = getattr(obj, attr, None)
+                        if val: 
+                            raw_text = str(val)
+                            break
                 
-                return ""
+                if not raw_text: return ""
+
+                # SCRUBBING
+                # Remove bolding, italics, non-breaking spaces, and weird brackets
+                text = raw_text.replace("**", "").replace("__", "").replace("&nbsp;", " ")
+                text = text.replace("【", "[").replace("】", "]") 
+                return text
 
             # Helper for MP cost
             def get_mp(obj):
@@ -585,11 +596,11 @@ def build(controller: CharacterController):
                 return "0"
 
             eq = controller.character.inventory.equipped
-            main_hand_name = clean_str(eq.main_hand) if eq.main_hand else ""
-            off_hand_name = clean_str(eq.off_hand) if eq.off_hand else ""
-            armor_name = clean_str(eq.armor) if eq.armor else ""
+            main_hand_name = clean_name(eq.main_hand) if eq.main_hand else ""
+            off_hand_name = clean_name(eq.off_hand) if eq.off_hand else ""
+            armor_name = clean_name(eq.armor) if eq.armor else ""
 
-            # 2. Fix Initiative
+            # 3. Fix Initiative
             raw_init = str(controller.initiative())
             init_mod = "0"
             if "-" in raw_init:
@@ -601,17 +612,15 @@ def build(controller: CharacterController):
                 if parts[-1].strip().isdigit():
                     init_mod = "+" + parts[-1].strip()
 
-            # 3. Check Proficiencies (Checkbox Logic)
+            # 4. Check Proficiencies (Checkbox Logic)
             has_armor = False
             has_shield = False
             has_melee = False
             has_ranged = False
 
-            # Check classes against hardcoded knowledge
             for c in controller.character.classes:
                 c_name = str(c.name.name if hasattr(c.name, "name") else c.name).replace("_", " ").title()
                 
-                # Match against dictionary
                 found_profs = []
                 for key, profs in CLASS_PROFICIENCIES.items():
                     if key.lower() == c_name.lower():
@@ -623,7 +632,7 @@ def build(controller: CharacterController):
                 if "melee" in found_profs: has_melee = True
                 if "ranged" in found_profs: has_ranged = True
 
-            # 4. Gather Classes & Skills
+            # 5. Gather Classes & Skills
             classes_info_list = []
             for c in controller.character.classes:
                 c_name_str = c.name.localized_name(loc)
@@ -636,16 +645,17 @@ def build(controller: CharacterController):
                     if hasattr(s_name, "localized_name"): 
                         s_name = s_name.localized_name(loc)
                     
-                    s_desc = get_desc(skill)
+                    # Use the new Cleaner function
+                    s_desc = clean_desc(skill)
                     
-                    skills_text += f"- {clean_str(s_name)} (Lv {skill.current_level}): {s_desc}\n"
+                    skills_text += f"- {str(s_name).replace('_', ' ').title()} (Lv {skill.current_level}): {s_desc}\n"
                 
                 classes_info_list.append({
                     "name": full_name,
                     "skills": skills_text
                 })
 
-            # 5. Gather Spells
+            # 6. Gather Spells
             spells_list = []
             for class_key, spell_group in controller.character.spells.items():
                 for spell in spell_group:
@@ -654,11 +664,11 @@ def build(controller: CharacterController):
                          s_name = s_name.localized_name(loc)
                     
                     spells_list.append({
-                        "name": clean_str(s_name),
+                        "name": str(s_name).replace("_", " ").title(),
                         "mp": get_mp(spell),
-                        "target": clean_str(getattr(spell, "target", "")),
-                        "duration": clean_str(getattr(spell, "duration", "")),
-                        "effect": get_desc(spell)
+                        "target": clean_desc(getattr(spell, "target", "")), # Clean targets too
+                        "duration": clean_desc(getattr(spell, "duration", "")),
+                        "effect": clean_desc(spell)
                     })
 
             # --- BUILD PDF DATA ---
@@ -724,14 +734,3 @@ def build(controller: CharacterController):
                  st.error("Error: 'pdf_export' module not found. Did you add the import at the top of view.py?")
             except Exception as e:
                 st.error(f"An error occurred: {e}")
-        
-        st.divider()
-
-    col1, col2 = st.columns([0.2, 0.8])
-    with col1:
-        if st.button(loc.save_current_character_button):
-            controller.dump_character()
-            controller.dump_state()
-    with col2:
-        if st.button(loc.load_another_character_button):
-            set_view_state(ViewState.load)
