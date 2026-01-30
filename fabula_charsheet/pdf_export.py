@@ -1,5 +1,6 @@
 import io
 from pypdf import PdfReader, PdfWriter
+from pypdf.generic import NameObject
 
 def generate_character_pdf(template_path, data):
     """
@@ -15,8 +16,22 @@ def generate_character_pdf(template_path, data):
     # 1. Copy pages from template
     writer.append_pages_from_reader(reader)
 
+    # --- FIX: FORCE COPY ACROFORM DICTIONARY ---
+    # The error happens because the Writer doesn't know this is a Form PDF.
+    # We manually copy the Form definition from the Reader to the Writer.
+    if "/AcroForm" in reader.root_object:
+        writer.root_object[NameObject("/AcroForm")] = reader.root_object["/AcroForm"]
+    else:
+        # If the template itself has no forms, we can't fill anything.
+        # We print a warning to the logs (Streamlit will capture this) and return the blank PDF.
+        print(f"WARNING: The file at {template_path} has no Form Fields (AcroForm). Returning flat PDF.")
+        output_stream = io.BytesIO()
+        writer.write(output_stream)
+        output_stream.seek(0)
+        return output_stream
+    # -------------------------------------------
+
     # 2. Map Dictionary Keys to PDF Field Names (Italian)
-    # We use str() on everything to ensure pypdf doesn't crash on numbers
     field_mapping = {
         # --- IDENTITY ---
         "Nome":      str(data.get("name", "")),
@@ -56,7 +71,6 @@ def generate_character_pdf(template_path, data):
     }
 
     # 3. Handle Classes (List of strings)
-    # data['classes'] should be a list like ["Elementalist (Lv 2)", "Tinkerer (Lv 1)"]
     classes = data.get("classes", [])
     for i, cls_str in enumerate(classes):
         idx = i + 1 
