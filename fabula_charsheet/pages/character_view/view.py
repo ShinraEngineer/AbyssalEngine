@@ -18,6 +18,28 @@ from pages.utils import WeaponTableWriter, ArmorTableWriter, SkillTableWriter, S
     colored_attr
 from pages.character_view.view_state import ViewState
 
+# --- HARDCODED PROFICIENCIES (Since not in model) ---
+CLASS_PROFICIENCIES = {
+    "Guardian": ["armor", "shield", "melee"],
+    "Dark Knight": ["armor", "melee"],
+    "Weaponmaster": ["melee", "shield"],
+    "Sharpshooter": ["ranged"],
+    "Commander": ["melee", "shield"],
+    "Fury": ["melee"],
+    "Tinkerer": [],
+    "Lorist": [],
+    "Entropist": [],
+    "Spiritist": [],
+    "Elementalist": [],
+    "Wayfarer": [],
+    "Rogue": [],
+    "Dancer": [],
+    "Symbolist": [],
+    "Mutant": [],
+    "Chimerist": [],
+    "Orator": [],
+    "Arcanist": []
+}
 
 def build(controller: CharacterController):
     st.set_page_config(layout="wide")
@@ -532,22 +554,35 @@ def build(controller: CharacterController):
         if st.button("📄 Generate PDF Character Sheet"):
             # --- DATA PREPARATION ---
             
-            # Helper to clean strings (targets, durations, names)
+            # Helper to clean strings
             def clean_str(val):
                 if not val: return ""
                 return str(val).replace("_", " ").title()
 
-            # Helper to safely get description/text/rules
+            # Helper to safely get description (Deep Search)
             def get_desc(obj):
-                # Try common attribute names for description text
+                # 1. Try standard attributes
                 for attr in ["description", "text", "effect", "rules", "rules_text", "summary"]:
                     val = getattr(obj, attr, None)
                     if val: return str(val)
+                
+                # 2. Try nested 'data' object (common in some frameworks)
+                data_obj = getattr(obj, "data", None)
+                if data_obj:
+                    for attr in ["description", "text", "effect"]:
+                        val = getattr(data_obj, attr, None)
+                        if val: return str(val)
+
+                # 3. Fallback: Check internal dictionary
+                if hasattr(obj, "__dict__"):
+                    for k, v in obj.__dict__.items():
+                        if k in ["description", "text", "effect"] and v:
+                            return str(v)
+                            
                 return ""
 
-            # Helper to get MP cost
+            # Helper for MP cost
             def get_mp(obj):
-                # Try common attribute names for MP
                 for attr in ["mp", "cost", "mp_cost", "mind_points", "mp_text"]:
                     val = getattr(obj, attr, None)
                     if val is not None: return str(val)
@@ -558,7 +593,7 @@ def build(controller: CharacterController):
             off_hand_name = clean_str(eq.off_hand.name) if eq.off_hand else ""
             armor_name = clean_str(eq.armor.name) if eq.armor else ""
 
-            # 2. Fix Initiative (Extract modifier only)
+            # 2. Fix Initiative
             raw_init = str(controller.initiative())
             init_mod = "0"
             if "-" in raw_init:
@@ -570,20 +605,46 @@ def build(controller: CharacterController):
                 if parts[-1].strip().isdigit():
                     init_mod = "+" + parts[-1].strip()
 
-            # 3. Gather Classes & Skills (With Descriptions)
+            # 3. Check Proficiencies (Checkbox Logic)
+            has_armor = False
+            has_shield = False
+            has_melee = False
+            has_ranged = False
+
+            # Check classes against hardcoded knowledge
+            for c in controller.character.classes:
+                # Convert Enum or Name to string
+                c_name = str(c.name.name if hasattr(c.name, "name") else c.name).replace("_", " ").title()
+                
+                # Match against dictionary
+                # Use fuzzy match in case of "Dark_Knight" vs "Dark Knight"
+                found_profs = []
+                for key, profs in CLASS_PROFICIENCIES.items():
+                    if key.lower() == c_name.lower():
+                        found_profs = profs
+                        break
+                
+                if "armor" in found_profs: has_armor = True
+                if "shield" in found_profs: has_shield = True
+                if "melee" in found_profs: has_melee = True
+                if "ranged" in found_profs: has_ranged = True
+
+            # 4. Gather Classes & Skills
             classes_info_list = []
             for c in controller.character.classes:
                 c_name_str = c.name.localized_name(loc)
                 full_name = f"{c_name_str} (Lv {c.class_level()})"
                 
-                # Gather active skills
                 active_skills = [s for s in c.skills if s.current_level > 0]
                 skills_text = ""
                 for skill in active_skills:
-                    s_name = skill.name # Use localized if available
+                    s_name = skill.name 
+                    if hasattr(s_name, "localized_name"): 
+                        s_name = s_name.localized_name(loc)
+                    
                     s_desc = get_desc(skill)
                     
-                    # Using a dash '-' instead of bullet to prevent encoding errors
+                    # Using dash instead of bullet
                     skills_text += f"- {clean_str(s_name)} (Lv {skill.current_level}): {s_desc}\n"
                 
                 classes_info_list.append({
@@ -591,7 +652,7 @@ def build(controller: CharacterController):
                     "skills": skills_text
                 })
 
-            # 4. Gather Spells (Robust)
+            # 5. Gather Spells
             spells_list = []
             for class_key, spell_group in controller.character.spells.items():
                 for spell in spell_group:
@@ -642,25 +703,30 @@ def build(controller: CharacterController):
                 "off_hand": off_hand_name,
                 "armor": armor_name,
                 
+                # Proficiencies
+                "prof_armor": has_armor,
+                "prof_shield": has_shield,
+                "prof_melee": has_melee,
+                "prof_ranged": has_ranged,
+
                 # Lists
                 "classes_info": classes_info_list, 
                 "spells": spells_list
             }
 
             try:
-                # Generate the file in memory
                 pdf_file = pdf_export.generate_character_pdf("fabula_charsheet/template_sheet.pdf", pdf_data)
                 
                 st.download_button(
                     label="📥 Download PDF",
                     data=pdf_file,
-                    file_name=f"{controller.character.name}_Sheet.pdf",
+                    file_name=f"{controller.cracter.name}_Sheet.pdf",
                     mime="application/pdf"
                 )
                 st.success("PDF Generated! Click above to download.")
                 
             except FileNotFoundError:
-              st.error("Error: 'template_sheet.pdf' not found. Please upload it to the 'fabula_charsheet' folder.")
+                st.error("Error: 'template_sheet.pdf' not found. Please upload it to the 'fabula_charsheet' folder.")
             except NameError:
                  st.error("Error: 'pdf_export' module not found. Did you add the import at the top of view.py?")
             except Exception as e:

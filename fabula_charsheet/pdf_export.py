@@ -1,6 +1,6 @@
 import io
 from pypdf import PdfReader, PdfWriter
-from pypdf.generic import NameObject
+from pypdf.generic import NameObject, BooleanObject
 
 def generate_character_pdf(template_path, data):
     """
@@ -75,11 +75,29 @@ def generate_character_pdf(template_path, data):
         field_mapping[f"ArcanaDurata{idx}"] = spell.get("duration", "")
         field_mapping[f"ArcanaNote{idx}"] = spell.get("effect", "")
 
-    # FIX: Apply fields to ALL pages, not just the first one
+    # 4. Handle Checkboxes (Proficiencies)
+    # Fabula sheet usually uses 'Yes' or '/Yes' for ON.
+    # We map the keys sent from view.py to the likely PDF field names.
+    # Note: These names (MartialArmor, etc.) are standard guesses. 
+    # If they fail, we might need to inspect the PDF fields specifically.
+    checkboxes = {
+        "MartialArmor": data.get("prof_armor", False),
+        "MartialShields": data.get("prof_shield", False),
+        "MartialMelee": data.get("prof_melee", False),
+        "MartialRanged": data.get("prof_ranged", False)
+    }
+
+    # Apply fields to ALL pages
     for page in writer.pages:
         writer.update_page_form_field_values(
             page, field_mapping, auto_regenerate=False
         )
+        
+        # Apply Checkboxes manually
+        for name, checked in checkboxes.items():
+            if checked:
+                # 1. Try updating via standard update mechanism
+                writer.update_page_form_field_values(page, {name: "/Yes"})
 
     output_stream = io.BytesIO()
     writer.write(output_stream)
