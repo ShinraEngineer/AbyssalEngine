@@ -18,7 +18,7 @@ from pages.utils import WeaponTableWriter, ArmorTableWriter, SkillTableWriter, S
     colored_attr
 from pages.character_view.view_state import ViewState
 
-# --- HARDCODED PROFICIENCIES (Since not in model) ---
+# --- HARDCODED PROFICIENCIES ---
 CLASS_PROFICIENCIES = {
     "Guardian": ["armor", "shield", "melee"],
     "Dark Knight": ["armor", "melee"],
@@ -557,28 +557,24 @@ def build(controller: CharacterController):
             # Helper to clean strings
             def clean_str(val):
                 if not val: return ""
+                if hasattr(val, "localized_name"):
+                    return str(val.localized_name(loc)).replace("_", " ").title()
                 return str(val).replace("_", " ").title()
 
-            # Helper to safely get description (Deep Search)
+            # Helper to safely get description (Deep Search + Localized)
             def get_desc(obj):
-                # 1. Try standard attributes
+                # 1. Try localized description method (standard for this app)
+                if hasattr(obj, "localized_description"):
+                    try:
+                        return str(obj.localized_description(loc))
+                    except:
+                        pass
+                
+                # 2. Try standard attributes
                 for attr in ["description", "text", "effect", "rules", "rules_text", "summary"]:
                     val = getattr(obj, attr, None)
                     if val: return str(val)
                 
-                # 2. Try nested 'data' object (common in some frameworks)
-                data_obj = getattr(obj, "data", None)
-                if data_obj:
-                    for attr in ["description", "text", "effect"]:
-                        val = getattr(data_obj, attr, None)
-                        if val: return str(val)
-
-                # 3. Fallback: Check internal dictionary
-                if hasattr(obj, "__dict__"):
-                    for k, v in obj.__dict__.items():
-                        if k in ["description", "text", "effect"] and v:
-                            return str(v)
-                            
                 return ""
 
             # Helper for MP cost
@@ -589,9 +585,9 @@ def build(controller: CharacterController):
                 return "0"
 
             eq = controller.character.inventory.equipped
-            main_hand_name = clean_str(eq.main_hand.name) if eq.main_hand else ""
-            off_hand_name = clean_str(eq.off_hand.name) if eq.off_hand else ""
-            armor_name = clean_str(eq.armor.name) if eq.armor else ""
+            main_hand_name = clean_str(eq.main_hand) if eq.main_hand else ""
+            off_hand_name = clean_str(eq.off_hand) if eq.off_hand else ""
+            armor_name = clean_str(eq.armor) if eq.armor else ""
 
             # 2. Fix Initiative
             raw_init = str(controller.initiative())
@@ -613,11 +609,9 @@ def build(controller: CharacterController):
 
             # Check classes against hardcoded knowledge
             for c in controller.character.classes:
-                # Convert Enum or Name to string
                 c_name = str(c.name.name if hasattr(c.name, "name") else c.name).replace("_", " ").title()
                 
                 # Match against dictionary
-                # Use fuzzy match in case of "Dark_Knight" vs "Dark Knight"
                 found_profs = []
                 for key, profs in CLASS_PROFICIENCIES.items():
                     if key.lower() == c_name.lower():
@@ -644,7 +638,6 @@ def build(controller: CharacterController):
                     
                     s_desc = get_desc(skill)
                     
-                    # Using dash instead of bullet
                     skills_text += f"- {clean_str(s_name)} (Lv {skill.current_level}): {s_desc}\n"
                 
                 classes_info_list.append({

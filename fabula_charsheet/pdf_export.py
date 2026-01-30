@@ -1,6 +1,6 @@
 import io
 from pypdf import PdfReader, PdfWriter
-from pypdf.generic import NameObject, BooleanObject
+from pypdf.generic import NameObject
 
 def generate_character_pdf(template_path, data):
     """
@@ -18,40 +18,85 @@ def generate_character_pdf(template_path, data):
     if "/AcroForm" in reader.root_object:
         writer.root_object[NameObject("/AcroForm")] = reader.root_object["/AcroForm"]
 
-    # 1. Base Stats Mapping
+    # 1. Base Stats Mapping (Dual Language Support)
+    # We map to BOTH "Nome" (IT) and "Name" (EN) to ensure it works on any template.
     field_mapping = {
-        "Nome":      str(data.get("name", "")),
-        "Identita":  str(data.get("identity", "")),
-        "Tema":      str(data.get("theme", "")),
-        "Origine":   str(data.get("origin", "")),
-        "Livello":   str(data.get("level", "1")),
-        "Zenit":     str(data.get("zenit", "0")),
+        # Identity
+        "Nome": str(data.get("name", "")),
+        "Name": str(data.get("name", "")),
+        
+        "Identita": str(data.get("identity", "")),
+        "Identity": str(data.get("identity", "")),
+        
+        "Tema": str(data.get("theme", "")),
+        "Theme": str(data.get("theme", "")),
+        
+        "Origine": str(data.get("origin", "")),
+        "Origin": str(data.get("origin", "")),
+        
+        "Livello": str(data.get("level", "1")),
+        "Level": str(data.get("level", "1")),
+        
+        "Zenit": str(data.get("zenit", "0")),
         "PuntiFabula": str(data.get("fabula_points", "0")),
+        "FabulaPoints": str(data.get("fabula_points", "0")),
+        
         "PuntiEsperienza": str(data.get("exp", "0")),
+        "ExperiencePoints": str(data.get("exp", "0")),
 
         # Attributes
         "DestrezzaBase": f"d{data.get('dex', 6)}",
-        "IntuitoBase":   f"d{data.get('ins', 6)}",
-        "VigoreBase":    f"d{data.get('mig', 6)}",
-        "VolontaBase":   f"d{data.get('wil', 6)}",
+        "DexterityBase": f"d{data.get('dex', 6)}",
+        
+        "IntuitoBase": f"d{data.get('ins', 6)}",
+        "InsightBase": f"d{data.get('ins', 6)}",
+        
+        "VigoreBase": f"d{data.get('mig', 6)}",
+        "MightBase": f"d{data.get('mig', 6)}",
+        
+        "VolontaBase": f"d{data.get('wil', 6)}",
+        "WillpowerBase": f"d{data.get('wil', 6)}",
 
         # Status
-        "PVmax":      str(data.get("hp_max", 0)),
-        "PVattuali":  str(data.get("hp_current", 0)),
-        "PVcrisi":    str(int(int(data.get("hp_max", 0)) / 2)),
-        "PMmax":      str(data.get("mp_max", 0)),
-        "PMattuali":  str(data.get("mp_current", 0)),
-        "PImax":      str(data.get("ip_max", 6)),
-        "PIattuali":  str(data.get("ip_current", 6)),
+        "PVmax": str(data.get("hp_max", 0)),
+        "HPmax": str(data.get("hp_max", 0)),
+        
+        "PVattuali": str(data.get("hp_current", 0)),
+        "HPcurrent": str(data.get("hp_current", 0)),
+        
+        "PVcrisi": str(int(int(data.get("hp_max", 0)) / 2)),
+        "HPcrisis": str(int(int(data.get("hp_max", 0)) / 2)),
+        
+        "PMmax": str(data.get("mp_max", 0)),
+        "MPmax": str(data.get("mp_max", 0)),
+        
+        "PMattuali": str(data.get("mp_current", 0)),
+        "MPcurrent": str(data.get("mp_current", 0)),
+        
+        "PImax": str(data.get("ip_max", 6)),
+        "IPmax": str(data.get("ip_max", 6)),
+        
+        "PIattuali": str(data.get("ip_current", 6)),
+        "IPcurrent": str(data.get("ip_current", 6)),
         
         "ModIniziativa": str(data.get("init", 0)),
-        "Difesa":        str(data.get("def", 0)),
-        "DifesaMagica":  str(data.get("mdef", 0)),
+        "InitiativeMod": str(data.get("init", 0)),
+        
+        "Difesa": str(data.get("def", 0)),
+        "Defense": str(data.get("def", 0)),
+        
+        "DifesaMagica": str(data.get("mdef", 0)),
+        "MagicDefense": str(data.get("mdef", 0)),
         
         # Equipment
-        "Mano1Equip":    str(data.get("main_hand", "")),
-        "Mano2Equip":    str(data.get("off_hand", "")),
+        "Mano1Equip": str(data.get("main_hand", "")),
+        "MainHand": str(data.get("main_hand", "")),
+        
+        "Mano2Equip": str(data.get("off_hand", "")),
+        "OffHand": str(data.get("off_hand", "")),
+        
         "ArmaturaEquip": str(data.get("armor", "")),
+        "Armor": str(data.get("armor", "")),
     }
 
     # 2. Handle Classes & Skills
@@ -61,7 +106,10 @@ def generate_character_pdf(template_path, data):
         if idx > 7: break 
         
         field_mapping[f"Classe{idx}"] = cls_info.get("name", "")
+        field_mapping[f"Class{idx}"] = cls_info.get("name", "")
+        
         field_mapping[f"Info{idx}"] = cls_info.get("skills", "")
+        field_mapping[f"SkillInfo{idx}"] = cls_info.get("skills", "") # English variant guess
 
     # 3. Handle Spells
     spells = data.get("spells", [])
@@ -70,21 +118,34 @@ def generate_character_pdf(template_path, data):
         if idx > 20: break 
         
         field_mapping[f"ArcanaNome{idx}"] = spell.get("name", "")
+        field_mapping[f"SpellName{idx}"] = spell.get("name", "")
+        
         field_mapping[f"ArcanaPM{idx}"] = spell.get("mp", "")
+        field_mapping[f"SpellMP{idx}"] = spell.get("mp", "")
+        
         field_mapping[f"ArcanaBersagli{idx}"] = spell.get("target", "")
+        field_mapping[f"SpellTarget{idx}"] = spell.get("target", "")
+        
         field_mapping[f"ArcanaDurata{idx}"] = spell.get("duration", "")
+        field_mapping[f"SpellDuration{idx}"] = spell.get("duration", "")
+        
         field_mapping[f"ArcanaNote{idx}"] = spell.get("effect", "")
+        field_mapping[f"SpellEffect{idx}"] = spell.get("effect", "")
 
     # 4. Handle Checkboxes (Proficiencies)
-    # Fabula sheet usually uses 'Yes' or '/Yes' for ON.
-    # We map the keys sent from view.py to the likely PDF field names.
-    # Note: These names (MartialArmor, etc.) are standard guesses. 
-    # If they fail, we might need to inspect the PDF fields specifically.
-    checkboxes = {
+    # Map multiple potential field names to the checked value
+    prof_map = {
         "MartialArmor": data.get("prof_armor", False),
+        "Martial Armor": data.get("prof_armor", False),
+        
         "MartialShields": data.get("prof_shield", False),
+        "Martial Shields": data.get("prof_shield", False),
+        
         "MartialMelee": data.get("prof_melee", False),
-        "MartialRanged": data.get("prof_ranged", False)
+        "Martial Melee Weapons": data.get("prof_melee", False), # English sheet usually full text
+        
+        "MartialRanged": data.get("prof_ranged", False),
+        "Martial Ranged Weapons": data.get("prof_ranged", False)
     }
 
     # Apply fields to ALL pages
@@ -93,11 +154,10 @@ def generate_character_pdf(template_path, data):
             page, field_mapping, auto_regenerate=False
         )
         
-        # Apply Checkboxes manually
-        for name, checked in checkboxes.items():
+        # Apply Checkboxes manually using NameObject('/Yes')
+        for name, checked in prof_map.items():
             if checked:
-                # 1. Try updating via standard update mechanism
-                writer.update_page_form_field_values(page, {name: "/Yes"})
+                writer.update_page_form_field_values(page, {name: NameObject("/Yes")})
 
     output_stream = io.BytesIO()
     writer.write(output_stream)
