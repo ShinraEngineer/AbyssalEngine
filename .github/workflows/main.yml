@@ -16,24 +16,26 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          # Cache removed to prevent "lock file not found" error
-          
-      - name: Install dependencies
-        # Using 'install' instead of 'ci' since there is no lock file
-        run: npm install
-        
-      - name: Build
-        # This generates the 'dist' folder
-        run: npm run build
-        
+
+      - name: Generate Lockfile and Install
+        run: |
+          # This forces npm to create a package-lock.json if it's missing
+          npm install --package-lock-only
+          # Now install using the newly created lockfile
+          npm install
+
+      - name: Build Application
+        # We use the 'base' flag to ensure the site works on scook.github.io/AbyssalEngine/
+        run: npm run build -- --base=/${{ github.event.repository.name }}/
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
-        
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
