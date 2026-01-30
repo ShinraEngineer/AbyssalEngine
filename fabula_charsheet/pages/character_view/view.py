@@ -1,3 +1,8 @@
+import sys
+import os
+# Ensure we can import modules from the root if needed
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+
 import streamlit as st
 import pdf_export
 import config
@@ -523,7 +528,7 @@ def build(controller: CharacterController):
         # --- PDF EXPORT SECTION ---
         st.subheader("🛠️ System Tools")
         st.write("Export your character to a printable PDF file.")
-        
+
         if st.button("📄 Generate PDF Character Sheet"):
             # --- DATA PREPARATION ---
             
@@ -542,7 +547,6 @@ def build(controller: CharacterController):
             # Transforms "d8 + d8 - 2" -> "-2"
             raw_init = str(controller.initiative())
             init_mod = "0"
-            # Look for explicit plus or minus at the end of the string
             if "-" in raw_init:
                 parts = raw_init.split("-")
                 if parts[-1].strip().isdigit():
@@ -552,7 +556,7 @@ def build(controller: CharacterController):
                 if parts[-1].strip().isdigit():
                     init_mod = "+" + parts[-1].strip()
 
-            # 3. Gather Classes & Skills
+            # 3. Gather Classes & Skills (With Descriptions)
             classes_info_list = []
             for c in controller.character.classes:
                 c_name_str = c.name.localized_name(loc)
@@ -563,7 +567,11 @@ def build(controller: CharacterController):
                 skills_text = ""
                 for skill in active_skills:
                     s_name = skill.name # Use localized if available in your model
-                    skills_text += f"• {s_name.replace('_', ' ').title()} (Lv {skill.current_level})\n"
+                    # Try to find a description attribute
+                    s_desc = getattr(skill, "description", getattr(skill, "text", ""))
+                    
+                    # Using a dash '-' instead of bullet to prevent encoding errors
+                    skills_text += f"- {s_name.replace('_', ' ').title()} (Lv {skill.current_level}): {s_desc}\n"
                 
                 classes_info_list.append({
                     "name": full_name,
@@ -660,3 +668,13 @@ def build(controller: CharacterController):
             except Exception as e:
                 st.error(f"An error occurred: {e}")
         
+        st.divider()
+
+    col1, col2 = st.columns([0.2, 0.8])
+    with col1:
+        if st.button(loc.save_current_character_button):
+            controller.dump_character()
+            controller.dump_state()
+    with col2:
+        if st.button(loc.load_another_character_button):
+            set_view_state(ViewState.load)

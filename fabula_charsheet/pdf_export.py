@@ -4,7 +4,7 @@ from pypdf.generic import NameObject
 
 def generate_character_pdf(template_path, data):
     """
-    Fills the Fabula Ultima template with dictionary data.
+    Fills the Fabula Ultima template (all pages) with dictionary data.
     """
     if not isinstance(data, dict):
         raise TypeError(f"Expected dictionary for 'data', got {type(data).__name__}: {data}")
@@ -54,17 +54,16 @@ def generate_character_pdf(template_path, data):
         "ArmaturaEquip": str(data.get("armor", "")),
     }
 
-    # 2. Handle Classes & Skills (Looping)
+    # 2. Handle Classes & Skills
     classes = data.get("classes_info", [])
     for i, cls_info in enumerate(classes):
         idx = i + 1 
         if idx > 7: break 
         
         field_mapping[f"Classe{idx}"] = cls_info.get("name", "")
-        # 'Info' is the big text box for skills in the PDF
         field_mapping[f"Info{idx}"] = cls_info.get("skills", "")
 
-    # 3. Handle Spells (Looping)
+    # 3. Handle Spells
     spells = data.get("spells", [])
     for i, spell in enumerate(spells):
         idx = i + 1
@@ -76,9 +75,11 @@ def generate_character_pdf(template_path, data):
         field_mapping[f"ArcanaDurata{idx}"] = spell.get("duration", "")
         field_mapping[f"ArcanaNote{idx}"] = spell.get("effect", "")
 
-    writer.update_page_form_field_values(
-        writer.pages[0], field_mapping, auto_regenerate=False
-    )
+    # FIX: Apply fields to ALL pages, not just the first one
+    for page in writer.pages:
+        writer.update_page_form_field_values(
+            page, field_mapping, auto_regenerate=False
+        )
 
     output_stream = io.BytesIO()
     writer.write(output_stream)
