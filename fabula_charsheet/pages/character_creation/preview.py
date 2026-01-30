@@ -66,7 +66,8 @@ def build(controller: CharacterController):
         if st.button(loc.save_character_button, disabled= not controller.has_enough_skills()):
             controller.dump_character()
             controller.dump_avatar(st.session_state.avatar)
-            s.SAVED_CHARS.char_list.append(controller.character)
+            # UPDATED: Use update_character to ensure persistence
+            s.SAVED_CHARS.update_character(controller.character)
             st.toast(loc.page_save_character_toast, icon="🧙")
         if not controller.has_enough_skills():
             st.warning(
@@ -170,8 +171,8 @@ def build(controller: CharacterController):
                 st.markdown(f"**{localized_category}**: {equipped_item_str}")
             with eq_col_2:
                 if st.button(loc.unequip_button,
-                          key=f"{category}-unequip",
-                          disabled=(not equipped_item)):
+                           key=f"{category}-unequip",
+                           disabled=(not equipped_item)):
                     unequip_item(controller, category)
                     st.rerun()
         show_martial(controller.character)
