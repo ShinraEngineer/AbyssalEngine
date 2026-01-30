@@ -546,7 +546,7 @@ def build(controller: CharacterController):
                 "level": controller.character.level,
                 "fabula_points": 0,
                 "zenit": controller.character.inventory.zenit,
-                "exp": controller.character.experience, 
+                "exp": 0, 
                 
                 # Attributes
                 "dex": controller.character.dexterity.base,
