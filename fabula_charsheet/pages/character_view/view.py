@@ -529,7 +529,7 @@ def build(controller: CharacterController):
             class_list = []
             for c in controller.character.classes:
                 c_name = c.name.localized_name(loc)
-                class_list.append(f"{c_name} (Lv {c.current_level})")
+                class_list.append(f"{c_name} (Lv {c.class_level()})")
 
             # Helper to get equipment names safely
             eq = controller.character.inventory.equipped
