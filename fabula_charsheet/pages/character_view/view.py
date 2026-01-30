@@ -520,11 +520,76 @@ def build(controller: CharacterController):
             InventionTableWriter(loc).write_in_columns(added_inventions)
             st.divider()
 
-    col1, col2 = st.columns([0.2, 0.8])
-    with col1:
-        if st.button(loc.save_current_character_button):
-            controller.dump_character()
-            controller.dump_state()
-    with col2:
-        if st.button(loc.load_another_character_button):
-            set_view_state(ViewState.load)
+        # --- PDF EXPORT SECTION ---
+        st.subheader("🛠️ System Tools")
+        st.write("Export your character to a printable PDF file.")
+        
+        if st.button("📄 Generate PDF Character Sheet"):
+            # Helper to format classes
+            class_list = []
+            for c in controller.character.classes:
+                c_name = c.name.localized_name(loc)
+                class_list.append(f"{c_name} (Lv {c.current_level})")
+
+            # Helper to get equipment names safely
+            eq = controller.character.inventory.equipped
+            main_hand_name = eq.main_hand.name.localized_name(loc) if eq.main_hand else ""
+            off_hand_name = eq.off_hand.name.localized_name(loc) if eq.off_hand else ""
+            armor_name = eq.armor.name.localized_name(loc) if eq.armor else ""
+
+            # Map the controller data to the keys expected by pdf_export.py
+            pdf_data = {
+                "name": controller.character.name,
+                "identity": controller.character.identity,
+                "theme": controller.character.theme,
+                "origin": controller.character.origin,
+                "level": controller.character.level,
+                "fabula_points": 0,
+                "zenit": controller.character.inventory.zenit,
+                "exp": controller.character.experience, 
+                
+                # Attributes
+                "dex": controller.character.dexterity.base,
+                "ins": controller.character.insight.base,
+                "mig": controller.character.might.base,
+                "wil": controller.character.willpower.base,
+                
+                # Calculated Stats
+                "hp_current": controller.current_hp(),
+                "hp_max": controller.max_hp(),
+                "mp_current": controller.current_mp(),
+                "mp_max": controller.max_mp(),
+                "ip_current": controller.current_ip(),
+                "ip_max": controller.max_ip(),
+                
+                "init": controller.initiative(),
+                "def": controller.defense(),
+                "mdef": controller.magic_defense(),
+                
+                # Lists & Strings
+                "classes": class_list,
+                "main_hand": main_hand_name,
+                "off_hand": off_hand_name,
+                "armor": armor_name,
+            }
+
+            try:
+                # Generate the file in memory
+                pdf_file = pdf_export.generate_character_pdf("fabula_charsheet/template_sheet.pdf", pdf_data)
+                
+                st.download_button(
+                    label="📥 Download PDF",
+                    data=pdf_file,
+                    file_name=f"{controller.character.name}_Sheet.pdf",
+                    mime="application/pdf"
+                )
+                st.success("PDF Generated! Click above to download.")
+                
+            except FileNotFoundError:
+                st.error("Error: 'template_sheet.pdf' not found. Please upload it to the 'fabula_charsheet' folder.")
+            except NameError:
+                 st.error("Error: 'pdf_export' module not found. Did you add the import at the top of view.py?")
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
+        
+        st.divider()
