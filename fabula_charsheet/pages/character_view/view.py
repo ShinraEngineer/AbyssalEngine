@@ -570,17 +570,35 @@ def build(controller: CharacterController):
                     "skills": skills_text
                 })
 
-            # 4. Gather Spells
+            # 4. Gather Spells (Robust)
             spells_list = []
             # 'controller.character.spells' is a Dict[ClassName, List[Spell]]
             for class_key, spell_group in controller.character.spells.items():
                 for spell in spell_group:
+                    # Safe attribute access using getattr to prevent crashes
+                    # Name: default to string, clean formatting
+                    s_name = getattr(spell, "name", "Unknown Spell")
+                    if hasattr(s_name, "localized_name"): # Handle if name is an Enum
+                         s_name = s_name.localized_name(loc)
+                    
+                    # MP: Try 'mp', then 'cost', then default to '0'
+                    s_mp = getattr(spell, "mp", getattr(spell, "cost", "0"))
+                    
+                    # Target: Try 'target'
+                    s_target = getattr(spell, "target", "")
+                    
+                    # Duration: Try 'duration'
+                    s_duration = getattr(spell, "duration", "")
+                    
+                    # Effect: Try 'description', then 'effect', then 'text'
+                    s_effect = getattr(spell, "description", getattr(spell, "effect", getattr(spell, "text", "")))
+
                     spells_list.append({
-                        "name": spell.name.replace("_", " ").title(),
-                        "mp": str(spell.mp),
-                        "target": spell.target,
-                        "duration": spell.duration,
-                        "effect": spell.description if hasattr(spell, "description") else ""
+                        "name": str(s_name).replace("_", " ").title(),
+                        "mp": str(s_mp),
+                        "target": str(s_target),
+                        "duration": str(s_duration),
+                        "effect": str(s_effect)
                     })
 
             # --- BUILD PDF DATA ---
