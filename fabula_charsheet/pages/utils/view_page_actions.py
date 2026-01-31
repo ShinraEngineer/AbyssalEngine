@@ -2,6 +2,11 @@ from __future__ import annotations
 
 import math
 import streamlit as st
+import base64
+import requests
+import random
+from io import BytesIO
+from PIL import Image
 
 from pages.controller import CharacterController, ClassController
 from data.models import AttributeName, Weapon, GripType, WeaponCategory, \
@@ -14,17 +19,66 @@ from data import compendium as c
 from data.compendium import COMPENDIUM  # Explicit import for the item library
 
 def avatar_update(controller: CharacterController, loc: LocNamespace):
+    st.subheader(loc.page_view_avatar_title)
+    
+    # 1. File Upload
     uploaded_avatar = st.file_uploader(
-        "avatar uploader", accept_multiple_files=False,
+        "Upload Image (Max 10MB)", 
+        accept_multiple_files=False,
         type=["jpg", "jpeg", "png", "gif"],
-        label_visibility="hidden"
+        label_visibility="collapsed"
     )
-    if uploaded_avatar is not None:
-        st.image(uploaded_avatar, width=100)
-    if st.button(loc.use_avatar_button, disabled=not uploaded_avatar):
-        controller.dump_avatar(uploaded_avatar)
-        st.rerun()
+    
+    st.markdown("**OR**")
+    
+    # 2. URL Import
+    avatar_url = st.text_input("Image URL", placeholder="https://imgur.com/...")
 
+    # Preview Logic
+    image_data = None
+    
+    if uploaded_avatar is not None:
+        image_data = uploaded_avatar.getvalue()
+        st.image(uploaded_avatar, width=150)
+        
+    elif avatar_url:
+        try:
+            if st.button("Preview URL", width="stretch"):
+                response = requests.get(avatar_url, timeout=5)
+                response.raise_for_status()
+                image_data = response.content
+                # Verify it's an image
+                Image.open(BytesIO(image_data)) 
+                st.session_state['temp_avatar_data'] = image_data # Store for save
+                st.image(image_data, width=150)
+        except Exception as e:
+            st.error(f"Invalid URL: {e}")
+            
+    # Check session state for URL preview data if not re-fetching
+    if image_data is None and 'temp_avatar_data' in st.session_state:
+        image_data = st.session_state['temp_avatar_data']
+
+    # 3. Save Button
+    if st.button(loc.use_avatar_button, width="stretch", disabled=(image_data is None)):
+        try:
+            # Convert to Base64 Data URI for persistence
+            b64_str = base64.b64encode(image_data).decode('utf-8')
+            mime_type = "image/png" # Default fallback
+            # Simple mime detection
+            if image_data.startswith(b'\xff\xd8'): mime_type = "image/jpeg"
+            elif image_data.startswith(b'\x89PNG'): mime_type = "image/png"
+            elif image_data.startswith(b'GIF8'): mime_type = "image/gif"
+            
+            final_uri = f"data:{mime_type};base64,{b64_str}"
+            
+            controller.dump_avatar(final_uri)
+            if 'temp_avatar_data' in st.session_state:
+                del st.session_state['temp_avatar_data']
+                
+            st.success("Avatar updated!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Failed to save avatar: {e}")
 
 def level_up(controller: CharacterController, loc: LocNamespace):
     st.session_state.selected_hero_skills = []
@@ -702,7 +756,7 @@ def manifest_therioform(controller: CharacterController, loc: LocNamespace):
             controller.state.active_therioforms = selected_therioforms
             st.rerun()
 
-
+# --- UPDATED ITEM DISPLAY FUNCTION ---
 def display_equipped_item(controller: CharacterController,
                           item: Item,
                           category: str,
@@ -728,20 +782,43 @@ def display_equipped_item(controller: CharacterController,
     }.get(category, category)
     st.write(f"**{category_name}**")
 
-    # Columns setup
+    # Layout Columns
     c1, c2, c3, c4 = st.columns([0.3, 0.3, 0.3, 0.1]) if category != "accessory" else st.columns([0.3, 0.5, 0.1, 0.1])
 
-    # Column 1: icon and name
+    # 1. Name & Icon
     with c1:
         st.markdown(icon)
         st.write(item.localized_name(loc))
 
-    # Column 2: accuracy/defense/magic defense
+    # 2. Accuracy / Defense
     with c2:
         if isinstance(item, Weapon):
-            st.markdown(f"_{loc.column_accuracy}_")
+            # Header with Roll Button
+            rc1, rc2 = st.columns([0.7, 0.3])
+            with rc1: st.markdown(f"_{loc.column_accuracy}_")
+            with rc2: 
+                if st.button("🎲", key=f"roll_acc_{category}", help="Roll Accuracy"):
+                    # Calculate Roll
+                    dice_vals = []
+                    total = 0
+                    for attr in item.accuracy:
+                        d_size = getattr(controller.character, attr).current
+                        roll = random.randint(1, d_size)
+                        dice_vals.append(roll)
+                        total += roll
+                    
+                    hr = max(dice_vals) if dice_vals else 0
+                    bonus = item.bonus_accuracy
+                    final = total + bonus
+                    
+                    # Toast Result
+                    st.toast(f"**Accuracy Check**: {final} (HR: {hr})", icon="⚔️")
+            
+            # Display Dice string
             accuracy_str = " + ".join(f"{loc.dice_prefix}{getattr(controller.character, attr).current}" for attr in item.accuracy)
+            if item.bonus_accuracy > 0: accuracy_str += f" + {item.bonus_accuracy}"
             st.write(accuracy_str)
+
         elif isinstance(item, Armor):
             st.markdown(f"_{loc.column_defense}_")
             if isinstance(item.defense, AttributeName):
@@ -756,11 +833,20 @@ def display_equipped_item(controller: CharacterController,
             st.write(f"_{loc.column_quality}_")
             st.write(item.localized_quality(loc))
 
-    # Column 3: damage/magic defense/initiative
+    # 3. Damage / M.Def
     with c3:
         if isinstance(item, Weapon):
-            st.markdown(f"_{loc.column_damage}_")
-            st.markdown(f"{loc.hr} + {item.bonus_damage}\n\n{item.damage_type.localized_name(loc)}")
+            # Header with Roll Button
+            rc1, rc2 = st.columns([0.7, 0.3])
+            with rc1: st.markdown(f"_{loc.column_damage}_")
+            with rc2: 
+                if st.button("🎲", key=f"roll_dmg_{category}", help="Roll Bonus Damage"):
+                    dmg = item.bonus_damage
+                    st.toast(f"**Damage**: HR + {dmg}", icon="💥")
+
+            st.markdown(f"{loc.hr} + {item.bonus_damage}")
+            st.caption(item.damage_type.localized_name(loc))
+
         elif isinstance(item, Armor):
             st.markdown(f"_{loc.column_magic_defense}_")
             if isinstance(item.magic_defense, AttributeName):
@@ -771,17 +857,15 @@ def display_equipped_item(controller: CharacterController,
         elif isinstance(item, Shield):
             st.markdown(f"_{loc.column_magic_defense}_")
             st.write(item.bonus_magic_defense)
-        elif isinstance(item, Accessory):
-            pass
 
-    # Column 4: unequip button
+    # 4. Unequip
     with c4:
         disabled = (isinstance(item, Weapon) and item.name == "unarmed_strike")
-        if st.button("", icon=":material/arrow_downward:", key=f"{category}-unequip", help=loc.page_view_unequip_help, disabled=disabled):
+        if st.button("⬇", key=f"{category}-unequip", help=loc.page_view_unequip_help, disabled=disabled, width="stretch"):
             unequip_item(controller, category)
             st.rerun()
 
-    # Footer line
+    # Footer
     if isinstance(item, Weapon):
         st.write(" ◆ ".join([
             item.grip_type.localized_name(loc),
@@ -792,7 +876,6 @@ def display_equipped_item(controller: CharacterController,
         st.write(f"{item.localized_quality(loc)} ◆ {loc.column_initiative}: {item.bonus_initiative}")
     elif isinstance(item, Shield):
         st.write(f"{item.localized_quality(loc)} ◆ {loc.column_initiative}: {item.bonus_initiative}")
-
 
 def add_arcanum(controller: CharacterController, loc: LocNamespace):
     selected_arcanum = list()
