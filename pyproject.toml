@@ -16,3 +16,6 @@ dependencies = [
 
 [project.scripts]
 fabula_charsheet = "fabula_charsheet.main:main"
+
+[tool.poetry]
+package-mode = false
