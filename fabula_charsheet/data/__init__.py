@@ -1,4 +1,1 @@
-from .compendium import (
-    Compendium,
-    Equipment,
-)
+from .compendium import Compendium

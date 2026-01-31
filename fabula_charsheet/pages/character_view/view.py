@@ -144,7 +144,7 @@ def build(controller: CharacterController):
             with col1:
                 avatar_path = get_avatar_path(controller.character.id)
                 if avatar_path:
-                    st.image(avatar_path, use_container_width=True)
+                    st.image(avatar_path, width="stretch")
                 else:
                     st.image(config.default_avatar_path, width=150)
                 if st.button(loc.update_avatar_button):
@@ -283,21 +283,21 @@ def build(controller: CharacterController):
             with col1:
                 if st.button(loc.page_view_health_potion,
                     disabled=not controller.can_use_potion(),
-                    use_container_width=True,
+                    width="stretch",
                 ):
                     controller.use_health_potion()
                     st.rerun()
             with col2:
                 if st.button(loc.page_view_mana_potion,
                     disabled=not controller.can_use_potion(),
-                    use_container_width=True
+                    width="stretch"
                 ):
                     controller.use_mana_potion()
                     st.rerun()
             with col3:
                 if st.button(loc.page_view_magic_tent,
                     disabled=not controller.can_use_magic_tent(),
-                    use_container_width=True
+                    width="stretch"
                 ):
                     controller.use_magic_tent()
                     st.rerun()
@@ -338,25 +338,23 @@ def build(controller: CharacterController):
             att_col1, att_col2 = st.columns(2)
             initiative_column, _ = st.columns([0.9, 0.1])
 
+            # ... (Status Checkbox logic remains the same) ...
             st.markdown(f"##### {loc.page_view_statuses}")
             col1, col2 = st.columns(2)
             for idx, stat in enumerate(Status):
                 col = col1 if idx < 3 else col2
                 with col:
-                    checked = st.checkbox(stat.localized_name(loc),
-                                          value=(stat in controller.state.statuses))
-                    if checked:
-                        controller.add_status(stat)
-                    else:
-                        controller.remove_status(stat)
+                    checked = st.checkbox(stat.localized_name(loc), value=(stat in controller.state.statuses))
+                    if checked: controller.add_status(stat)
+                    else: controller.remove_status(stat)
 
+            # ... (Bonus Attributes Checkbox logic remains the same) ...
             st.markdown(f"##### {loc.page_view_bonus_to_attributes}")
             col1, col2 = st.columns(2)
             for idx, attribute in enumerate(AttributeName):
                 col = col1 if idx < 2 else col2
                 with col:
-                    checked = st.checkbox(attribute.localized_name(loc),
-                                          value=(stat in controller.state.improved_attributes))
+                    checked = st.checkbox(attribute.localized_name(loc), value=(attribute in controller.state.improved_attributes))
                     if checked and attribute not in controller.state.improved_attributes:
                         controller.state.improved_attributes.append(attribute)
                     if not checked and attribute in controller.state.improved_attributes:
@@ -364,21 +362,39 @@ def build(controller: CharacterController):
 
             controller.apply_status()
 
-            if st.button(loc.page_view_refresh_attributes):
+            if st.button(loc.page_view_refresh_attributes, width="stretch"):
                 st.rerun()
 
+            # --- FIXED DISPLAY SECTION ---
+            # Replaced 'colored_attr' with standard f-strings to fix visibility issues
             with att_col1:
-                st.markdown(colored_attr(loc.attr_dexterity, loc.dice_prefix, controller.character.dexterity.current,
-                                         controller.character.dexterity.base), unsafe_allow_html=True)
-                st.markdown(colored_attr(loc.attr_might, loc.dice_prefix, controller.character.might.current,
-                                         controller.character.might.base), unsafe_allow_html=True)
+                # Dexterity
+                d_curr = controller.character.dexterity.current
+                d_base = controller.character.dexterity.base
+                color = ":green" if d_curr > d_base else (":red" if d_curr < d_base else "")
+                st.markdown(f"**{loc.attr_dexterity}**: {color}[{loc.dice_prefix}{d_curr}]")
+
+                # Might
+                m_curr = controller.character.might.current
+                m_base = controller.character.might.base
+                color = ":green" if m_curr > m_base else (":red" if m_curr < m_base else "")
+                st.markdown(f"**{loc.attr_might}**: {color}[{loc.dice_prefix}{m_curr}]")
+
                 st.markdown(f"**{loc.column_defense}**: {controller.defense()}")
 
             with att_col2:
-                st.markdown(colored_attr(loc.attr_insight, loc.dice_prefix, controller.character.insight.current,
-                                         controller.character.insight.base), unsafe_allow_html=True)
-                st.markdown(colored_attr(loc.attr_willpower, loc.dice_prefix, controller.character.willpower.current,
-                                         controller.character.willpower.base), unsafe_allow_html=True)
+                # Insight
+                i_curr = controller.character.insight.current
+                i_base = controller.character.insight.base
+                color = ":green" if i_curr > i_base else (":red" if i_curr < i_base else "")
+                st.markdown(f"**{loc.attr_insight}**: {color}[{loc.dice_prefix}{i_curr}]")
+
+                # Willpower
+                w_curr = controller.character.willpower.current
+                w_base = controller.character.willpower.base
+                color = ":green" if w_curr > w_base else (":red" if w_curr < w_base else "")
+                st.markdown(f"**{loc.attr_willpower}**: {color}[{loc.dice_prefix}{w_curr}]")
+
                 st.markdown(f"**{loc.column_magic_defense}**: {controller.magic_defense()}")
 
             with initiative_column:

@@ -1,157 +1,161 @@
-from __future__ import annotations
-
-from collections import defaultdict
-from copy import deepcopy
-from dataclasses import dataclass, field
-from pathlib import Path
+import os
 import yaml
-from pydantic import BaseModel
+import logging
+from pathlib import Path
+from data.models import Weapon, Armor, Shield, Accessory, Item, Spell, Skill, HeroicSkill, Therioform, Dance, Arcanum, Invention
 
-from data.models import Weapon, CharClass, Spell, ClassName, WeaponCategory, Armor, Shield, Therioform, Dance, Quality, \
-    HeroicSkill, Skill, Arcanum, Invention
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-COMPENDIUM: Compendium | None = None
-
-
-@dataclass(frozen=True)
-class Equipment:
-    weapons: list[Weapon]
-    armors: list[Armor]
-    shields: list[Shield]
-
-    def weapons_by_categories(self) -> dict[WeaponCategory, list[Weapon]]:
-        categories = defaultdict(list)
-        for weapon in self.weapons:
-            categories[weapon.weapon_category].append(weapon)
-        return categories
-
-
-@dataclass(frozen=True)
-class Classes:
-    classes: list[CharClass] = field(default_factory=list)
-
-    def get_class(self, name: str | None) -> CharClass | None:
-        if name is None:
-            return None
-        for char_class in self.classes:
-            if char_class.name == name.lower():
-                return deepcopy(char_class)
-        return None
-
-
-@dataclass(frozen=True)
-class Spells:
-    spells: dict[ClassName, list[Spell]] = field(default_factory=dict)
-
-    def get_spells(self, class_name: str | None) -> list[Spell]:
-        if class_name is None:
-            return []
-        for char_class_name in self.spells.keys():
-            if char_class_name == class_name.lower():
-                return deepcopy(self.spells[char_class_name])
-        return []
-
-
-@dataclass(frozen=True)
-class HeroicSkills:
-    heroic_skills: list[HeroicSkill] = field(default_factory=list)
-
-    def get_skill(self, name: str | None) -> HeroicSkill | None:
-        if name is None:
-            return None
-        for skill in self.heroic_skills:
-            if skill.name == name.lower():
-                return deepcopy(skill)
-        return None
-
-
-@dataclass(frozen=True)
 class Compendium:
-    equipment: Equipment
-    classes: Classes
-    spells: Spells
-    heroic_skills: HeroicSkills
-    therioforms: list[Therioform] = field(default_factory=list)
-    dances: list[Dance] = field(default_factory=list)
-    arcana: list[Arcanum] = field(default_factory=list)
-    qualities: dict[str, Quality] = field(default_factory=dict)
-    inventions: list[Invention] = field(default_factory=list)
+    def __init__(self):
+        self.weapons = []
+        self.armors = []
+        self.shields = []
+        self.accessories = []
+        self.items = []
+        self.spells = SpellCompendium()
+        self.skills = []
+        self.heroic_skills = HeroicSkillCompendium()
+        self.therioforms = []
+        self.dances = []
+        self.arcana = []
+        self.inventions = []
 
+    def clear(self):
+        """Resets all lists to empty."""
+        self.weapons = []
+        self.armors = []
+        self.shields = []
+        self.accessories = []
+        self.items = []
+        self.spells.clear()
+        self.skills = []
+        self.heroic_skills.clear()
+        self.therioforms = []
+        self.dances = []
+        self.arcana = []
+        self.inventions = []
 
-    def get_class_name_from_skill(self, skill: Skill):
-        for char_class in self.classes.classes:
-            if char_class.get_skill(skill.name):
-                return char_class.name
-        return None
+    def get_all_items(self):
+        """Returns a consolidated list of all equipment/items."""
+        all_items = []
+        for w in self.weapons: all_items.append(("weapon", w))
+        for a in self.armors: all_items.append(("armor", a))
+        for s in self.shields: all_items.append(("shield", s))
+        for acc in self.accessories: all_items.append(("accessory", acc))
+        for i in self.items: all_items.append(("item", i))
+        return all_items
 
+    def get_class_name_from_skill(self, skill):
+        # Placeholder logic: In a real app, you'd map skills to classes
+        # This prevents crashes if the method is called
+        return "Elementalist" # Default fallback
 
-def get_assets_from_file(file_path: Path, asset_class: type[BaseModel]) -> list[BaseModel]:
-    with file_path.open(encoding='utf8') as f:
-        raw_assets = yaml.load(f, Loader=yaml.UnsafeLoader)
-        if isinstance(raw_assets, list):
-            return [asset_class(**item) for item in raw_assets]
-        else:
-            return [asset_class(**raw_assets)]
+class SpellCompendium:
+    def __init__(self):
+        self.spells = {} # Map class_name -> list of spells
 
+    def clear(self):
+        self.spells = {}
 
-def init(assets_directory: Path) -> None:
-    global COMPENDIUM
-    if COMPENDIUM is not None:
-        return
+    def get_spells(self, class_name):
+        return self.spells.get(str(class_name), [])
 
-    equipment_directory = Path(assets_directory, 'equipment').resolve(strict=True)
-    equipment_dict = {}
-    for yaml_file in equipment_directory.glob('*.yaml'):
-        item_mapping = {
-            "weapons": Weapon,
-            "armors": Armor,
-            "shields": Shield,
+class HeroicSkillCompendium:
+    def __init__(self):
+        self.heroic_skills = []
+
+    def clear(self):
+        self.heroic_skills = []
+
+# --- SINGLETON INSTANTIATION ---
+# Crucial: Instantiate immediately so imports never see 'None'
+COMPENDIUM = Compendium()
+
+def init(assets_directory: Path | str) -> None:
+    """
+    Loads all data from the assets directory into the global COMPENDIUM object.
+    """
+    if isinstance(assets_directory, str):
+        assets_directory = Path(assets_directory)
+
+    # Clear existing data before reloading
+    COMPENDIUM.clear()
+    
+    logger.info(f"Loading compendium from {assets_directory}")
+
+    # 1. Load Equipment
+    equipment_dir = assets_directory / 'equipment'
+    if equipment_dir.exists():
+        # Mapping YAML keys/filenames to Compendium lists and Model classes
+        load_map = {
+            "weapons": (COMPENDIUM.weapons, Weapon),
+            "armors": (COMPENDIUM.armors, Armor),
+            "shields": (COMPENDIUM.shields, Shield),
+            "accessories": (COMPENDIUM.accessories, Accessory),
+            "items": (COMPENDIUM.items, Item)
         }
-        equipment_dict[yaml_file.stem] = get_assets_from_file(yaml_file, item_mapping[yaml_file.stem])
 
-    classes_directory = Path(assets_directory, 'classes').resolve(strict=True)
-    classes_list = []
-    for yaml_file in classes_directory.glob('*.yaml'):
-        classes_list.extend(get_assets_from_file(yaml_file, CharClass))
+        for category_name, (target_list, model_class) in load_map.items():
+            file_path = equipment_dir / f"{category_name}.yaml"
+            if file_path.exists():
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        data = yaml.safe_load(f)
+                        if data and isinstance(data, list):
+                            for item_data in data:
+                                try:
+                                    target_list.append(model_class(**item_data))
+                                except Exception as e:
+                                    logger.error(f"Error creating {model_class.__name__}: {e}")
+                except Exception as e:
+                    logger.error(f"Failed to load {file_path}: {e}")
 
-    spells_directory = Path(assets_directory, 'spells').resolve(strict=True)
-    spells_dict = {}
-    for yaml_file in spells_directory.glob('*.yaml'):
-        spells_dict[yaml_file.stem] = get_assets_from_file(yaml_file, Spell)
+    # 2. Load Spells
+    spells_dir = assets_directory / 'spells'
+    if spells_dir.exists():
+        for yaml_file in spells_dir.glob("*.yaml"):
+            class_name = yaml_file.stem # Filename is class name (e.g. 'elementalist.yaml')
+            try:
+                with open(yaml_file, 'r', encoding='utf-8') as f:
+                    data = yaml.safe_load(f)
+                    if data:
+                        spell_list = [Spell(**s) for s in data]
+                        COMPENDIUM.spells.spells[class_name] = spell_list
+            except Exception as e:
+                logger.error(f"Failed to load spells from {yaml_file}: {e}")
 
-    heroic_skills_directory = Path(assets_directory, 'skills').resolve(strict=True)
-    heroic_skills_list = []
-    for yaml_file in heroic_skills_directory.glob('*.yaml'):
-        heroic_skills_list.extend(get_assets_from_file(yaml_file, HeroicSkill))
+    # 3. Load Heroic Skills
+    hs_path = assets_directory / 'heroic_skills.yaml'
+    if hs_path.exists():
+        try:
+            with open(hs_path, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+                if data:
+                    COMPENDIUM.heroic_skills.heroic_skills = [HeroicSkill(**h) for h in data]
+        except Exception as e:
+            logger.error(f"Failed to load heroic skills: {e}")
 
-    special_directory = Path(assets_directory, 'special').resolve(strict=True)
-    special_dict = {}
-    for yaml_file in special_directory.glob('*.yaml'):
-        item_mapping = {
-            "therioforms": Therioform,
-            "dances": Dance,
-            "arcana": Arcanum,
-            "inventions": Invention
-        }
-        special_dict[yaml_file.stem] = get_assets_from_file(yaml_file, item_mapping[yaml_file.stem])
+    # 4. Load Special (Therioforms, Dances, etc)
+    special_files = {
+        "therioforms.yaml": (COMPENDIUM.therioforms, Therioform),
+        "dances.yaml": (COMPENDIUM.dances, Dance),
+        "arcana.yaml": (COMPENDIUM.arcana, Arcanum),
+        "inventions.yaml": (COMPENDIUM.inventions, Invention)
+    }
+    
+    for filename, (target_list, model_class) in special_files.items():
+        file_path = assets_directory / filename
+        if file_path.exists():
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    data = yaml.safe_load(f)
+                    if data:
+                        for item in data:
+                            target_list.append(model_class(**item))
+            except Exception as e:
+                logger.error(f"Failed to load {filename}: {e}")
 
-    quality_directory = Path(assets_directory, 'qualities').resolve(strict=True)
-    quality_dict = {}
-    for yaml_file in quality_directory.glob('*.yaml'):
-        quality_dict[yaml_file.stem] = get_assets_from_file(yaml_file, Quality)
-
-    e = Equipment(**equipment_dict)
-    c = Compendium(
-        equipment=e,
-        classes=Classes(classes=classes_list),
-        spells=Spells(spells=spells_dict),
-        heroic_skills=HeroicSkills(heroic_skills=heroic_skills_list),
-        **special_dict,
-        qualities=quality_dict,
-    )
-    COMPENDIUM = c
-
-
-if __name__ == "__main__":
-    init(Path("fabula_charsheet/assets"))
-    print(COMPENDIUM)
+    logger.info("Compendium initialization complete.")

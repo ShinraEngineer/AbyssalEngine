@@ -1,7 +1,8 @@
-import os
-import json
+# fabula_charsheet/data/saved_characters.py
 import logging
-from typing import List, Any
+import streamlit as st
+from data.models import Character
+from data.database import DB
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -9,106 +10,84 @@ logger = logging.getLogger(__name__)
 
 class SavedCharactersRegistry:
     def __init__(self):
-        self.storage_file = None
         self.char_list = []
 
     def init(self, storage_dir: str):
-        """
-        Initialize the registry with a storage directory.
-        """
-        # Ensure directory exists
-        if not os.path.exists(storage_dir):
-            try:
-                os.makedirs(storage_dir, exist_ok=True)
-            except OSError as e:
-                logger.error(f"Failed to create storage directory {storage_dir}: {e}")
-                return
-
-        self.storage_file = os.path.join(storage_dir, "characters.json")
+        # We no longer need file paths, but we keep the method signature 
+        # to avoid breaking main.py calls.
         self.load_from_disk()
 
     def load_from_disk(self):
         """
-        Load characters from the JSON file into memory.
+        Load characters for the CURRENTLY LOGGED IN user.
         """
-        if not self.storage_file or not os.path.exists(self.storage_file):
+        # Safety check: Is a user logged in?
+        if "user_id" not in st.session_state or not st.session_state.user_id:
             self.char_list = []
             return
 
         try:
-            with open(self.storage_file, 'r', encoding='utf-8') as f:
-                # We assume the file contains a list of character dicts
-                data = json.load(f)
-                if isinstance(data, list):
-                    # In a real app, you might want to re-hydrate these into Character objects here
-                    # For now, we load them as they are (likely dicts or Pydantic models when in memory)
-                    self.char_list = data
-                else:
-                    self.char_list = []
-        except (OSError, json.JSONDecodeError) as e:
-            logger.error(f"Failed to load characters: {e}")
+            raw_data = DB.get_user_characters(st.session_state.user_id)
+            self.char_list = []
+            for char_data in raw_data:
+                try:
+                    # Re-hydrate the dictionary into a Character object
+                    if isinstance(char_data, dict):
+                        self.char_list.append(Character(**char_data))
+                except Exception as e:
+                    logger.error(f"Failed to rehydrate character: {e}")
+        except Exception as e:
+            logger.error(f"Failed to load characters from DB: {e}")
             self.char_list = []
 
     def save_to_disk(self):
         """
-        Serialize the current char_list to JSON and save to disk.
+        Saves ALL characters in the current list to the database.
         """
-        if not self.storage_file:
-            logger.error("Attempted to save without initialization.")
+        if "user_id" not in st.session_state or not st.session_state.user_id:
+            logger.error("Cannot save: No user logged in.")
             return
 
-        data_to_save = []
         for char in self.char_list:
-            # Handle Pydantic models, objects with to_dict, or plain dicts
-            if hasattr(char, "model_dump"):
-                data_to_save.append(char.model_dump())
-            elif hasattr(char, "to_dict"):
-                data_to_save.append(char.to_dict())
-            elif isinstance(char, dict):
-                data_to_save.append(char)
-            else:
-                data_to_save.append(char.__dict__)
-
-        try:
-            with open(self.storage_file, 'w', encoding='utf-8') as f:
-                json.dump(data_to_save, f, indent=4)
-            logger.info(f"Saved {len(data_to_save)} characters to {self.storage_file}")
-        except Exception as e:
-            logger.error(f"Failed to save characters to disk: {e}")
+            self.update_character(char)
 
     def update_character(self, character):
         """
-        Update a character in the list if it exists (by ID/Name), or append it.
-        Then triggers a save to disk.
+        Update a single character in the DB.
         """
-        # Determine unique identifier (prefer 'id', fallback to 'name')
-        char_id = getattr(character, 'id', None)
-        char_name = getattr(character, 'name', None)
+        if "user_id" not in st.session_state or not st.session_state.user_id:
+            return
 
-        found_index = -1
-        
-        for i, c in enumerate(self.char_list):
-            c_id = c.get('id') if isinstance(c, dict) else getattr(c, 'id', None)
-            c_name = c.get('name') if isinstance(c, dict) else getattr(c, 'name', None)
-
-            # Match by ID if available, otherwise Name
-            if char_id is not None and c_id == char_id:
-                found_index = i
-                break
-            elif char_id is None and char_name is not None and c_name == char_name:
-                found_index = i
-                break
-
-        if found_index >= 0:
-            self.char_list[found_index] = character
+        # Prepare data
+        if hasattr(character, "model_dump"):
+            data = character.model_dump(mode='json')
+        elif hasattr(character, "to_dict"):
+            data = character.to_dict()
         else:
-            self.char_list.append(character)
+            data = character.__dict__
 
-        self.save_to_disk()
+        char_id = str(getattr(character, 'id'))
+        char_name = getattr(character, 'name', 'Unnamed')
+
+        # Save to DB
+        DB.save_character(st.session_state.user_id, char_id, char_name, data)
+
+        # Update in-memory list
+        self._update_list_in_memory(character)
+
+    def _update_list_in_memory(self, character):
+        char_id = getattr(character, 'id', None)
+        found = False
+        for i, c in enumerate(self.char_list):
+            if getattr(c, 'id', None) == char_id:
+                self.char_list[i] = character
+                found = True
+                break
+        if not found:
+            self.char_list.append(character)
 
 # Global Singleton
 SAVED_CHARS = SavedCharactersRegistry()
 
-# Main entry point for initialization
 def init(storage_dir):
     SAVED_CHARS.init(storage_dir)

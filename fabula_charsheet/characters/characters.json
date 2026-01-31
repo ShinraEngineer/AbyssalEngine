@@ -1,0 +1,101 @@
+[
+    {
+        "id": "8579f74d-3bf5-4456-a070-361f80171cca",
+        "name": "Test",
+        "level": 5,
+        "identity": "Test",
+        "theme": "Test",
+        "origin": "Test",
+        "classes": [
+            {
+                "name": "dark_blade",
+                "class_bonus": "hp",
+                "bonus_value": 5,
+                "martial_melee": true,
+                "martial_ranged": false,
+                "martial_armor": true,
+                "martial_shields": false,
+                "rituals": [],
+                "skills": [
+                    {
+                        "name": "agony",
+                        "current_level": 0,
+                        "max_level": 5,
+                        "can_add_spell": false
+                    },
+                    {
+                        "name": "dark_blood",
+                        "current_level": 0,
+                        "max_level": 1,
+                        "can_add_spell": false
+                    },
+                    {
+                        "name": "heart_of_darkness",
+                        "current_level": 0,
+                        "max_level": 1,
+                        "can_add_spell": false
+                    },
+                    {
+                        "name": "painful_lesson",
+                        "current_level": 0,
+                        "max_level": 3,
+                        "can_add_spell": false
+                    },
+                    {
+                        "name": "shadow_strike",
+                        "current_level": 5,
+                        "max_level": 5,
+                        "can_add_spell": false
+                    }
+                ]
+            }
+        ],
+        "dexterity": {
+            "base": 8,
+            "current": 8,
+            "name": "dexterity"
+        },
+        "might": {
+            "base": 8,
+            "current": 8,
+            "name": "might"
+        },
+        "insight": {
+            "base": 8,
+            "current": 8,
+            "name": "insight"
+        },
+        "willpower": {
+            "base": 8,
+            "current": 8,
+            "name": "willpower"
+        },
+        "inventory": {
+            "zenit": 580,
+            "equipped": {
+                "main_hand": null,
+                "off_hand": null,
+                "armor": null,
+                "accessory": null
+            },
+            "backpack": {
+                "armors": [],
+                "weapons": [],
+                "shields": [],
+                "accessories": [],
+                "other": []
+            }
+        },
+        "spells": {
+            "dark_blade": []
+        },
+        "special": {
+            "therioforms": [],
+            "dances": [],
+            "arcana": [],
+            "inventions": []
+        },
+        "heroic_skills": [],
+        "bonds": []
+    }
+]

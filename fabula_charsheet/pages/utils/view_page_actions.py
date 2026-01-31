@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-
 import streamlit as st
 
 from pages.controller import CharacterController, ClassController
@@ -12,7 +11,7 @@ from .table_writer import SkillTableWriter, HeroicSkillTableWriter, SpellTableWr
     DanceTableWriter, ArcanumTableWriter, InventionTableWriter
 from .classes_page_actions import add_new_class
 from data import compendium as c
-
+from data.compendium import COMPENDIUM  # Explicit import for the item library
 
 def avatar_update(controller: CharacterController, loc: LocNamespace):
     uploaded_avatar = st.file_uploader(
@@ -150,59 +149,199 @@ def remove_chimerist_spell(controller: CharacterController, loc: LocNamespace):
                 controller.remove_spell(spell, ClassName.chimerist)
                 st.rerun()
 
+# --------------------------------------------------------------------------------------
+# UPDATED ADD_ITEM LOGIC (Item Library + Custom Create)
+# --------------------------------------------------------------------------------------
+
+# In fabula_charsheet/pages/utils/view_page_actions.py
 
 def add_item(controller: CharacterController, loc: LocNamespace):
-    item_type = st.segmented_control(
-        loc.page_view_item_type,
-        [Weapon, Armor, Shield, Accessory, Item],
-        format_func=lambda x: loc[f"item_{x.__name__.lower()}"],
-        selection_mode="single"
+    # 1. State Management
+    if "add_item_mode" not in st.session_state:
+        st.session_state.add_item_mode = "browse"
+
+    # --- MODE: BROWSE ---
+    if st.session_state.add_item_mode == "browse":
+        st.subheader(getattr(loc, "browse_items_title", "Item Library"))
+        
+        # Search & Clear
+        col_search, col_clear = st.columns([0.85, 0.15], vertical_alignment="bottom")
+        with col_search:
+            search_val = st.text_input(
+                getattr(loc, "search_label", "Search"), 
+                value=st.session_state.get("item_search_term", ""),
+                placeholder="Sword, Potion, etc...",
+                label_visibility="collapsed",
+                key="item_search_widget"
+            )
+            st.session_state.item_search_term = search_val
+
+        with col_clear:
+            if st.button("❌", help="Clear Search"):
+                st.session_state.item_search_term = ""
+                st.rerun()
+
+        # Categories
+        categories = {
+            "all": "All",
+            "weapon": getattr(loc, "item_weapon", "Weapon"),
+            "armor": getattr(loc, "item_armor", "Armor"),
+            "shield": getattr(loc, "item_shield", "Shield"),
+            "accessory": getattr(loc, "item_accessory", "Accessory"),
+            "item": getattr(loc, "item_other", "Item")
+        }
+        
+        selected_cat_key = st.pills(
+            "Category",
+            options=list(categories.keys()),
+            format_func=lambda x: categories[x],
+            default="all",
+            selection_mode="single"
+        )
+
+        # Create Custom Button
+        if st.button(f"➕ {getattr(loc, 'create_custom_item_button', 'Create Custom Item')}", width="stretch"):
+            st.session_state.add_item_mode = "create"
+            st.rerun()
+
+        st.divider()
+
+        # --- Filtering Logic (FIXED) ---
+        # We use 'c.COMPENDIUM' to get the live object, resolving the NoneType error
+        raw_items = []
+        
+        # Try to use the optimized getter if it exists
+        if hasattr(c.COMPENDIUM, "get_all_items"):
+            raw_items = c.COMPENDIUM.get_all_items()
+        else:
+            # Fallback: Manually gather from lists using c.COMPENDIUM
+            # This check ensures we don't crash if lists aren't ready
+            if c.COMPENDIUM is not None:
+                for w in c.COMPENDIUM.weapons: raw_items.append(("weapon", w))
+                for a in c.COMPENDIUM.armors: raw_items.append(("armor", a))
+                for s in c.COMPENDIUM.shields: raw_items.append(("shield", s))
+                for acc in c.COMPENDIUM.accessories: raw_items.append(("accessory", acc))
+                for i in c.COMPENDIUM.items: raw_items.append(("item", i))
+
+        filtered_items = []
+        search_lower = st.session_state.item_search_term.lower()
+
+        for item_type, item_obj in raw_items:
+            # Filter by Category
+            if selected_cat_key != "all" and item_type != selected_cat_key:
+                continue
+
+            # Filter by Search Term
+            loc_name = ""
+            if hasattr(item_obj, 'localized_name'):
+                loc_name = item_obj.localized_name(loc)
+            elif hasattr(item_obj, 'name'):
+                loc_name = item_obj.name
+                
+            name_match = search_lower in item_obj.name.lower()
+            loc_match = search_lower in loc_name.lower()
+            
+            if name_match or loc_match:
+                filtered_items.append((item_type, item_obj))
+
+        # --- Results Display ---
+        if not filtered_items:
+            st.info("No items found matching criteria.")
+        else:
+            with st.container(height=400):
+                for item_type, item_obj in filtered_items:
+                    c1, c2 = st.columns([0.8, 0.2])
+                    with c1:
+                        display_name = item_obj.localized_name(loc) if hasattr(item_obj, 'localized_name') else item_obj.name
+                        
+                        subtitle = f"**{categories.get(item_type, item_type)}**"
+                        if hasattr(item_obj, "cost"):
+                            subtitle += f" | 💰 {item_obj.cost}"
+                        if hasattr(item_obj, "damage") and item_obj.damage:
+                            subtitle += f" | ⚔️ HR + {item_obj.damage}"
+                        
+                        st.markdown(f"**{display_name}**")
+                        st.caption(subtitle)
+                    
+                    with c2:
+                        if st.button("Add", key=f"add_lib_{item_type}_{item_obj.name}", width="stretch"):
+                            controller.add_item(item_obj) 
+                            st.toast(f"Added {display_name} to inventory!", icon="🎒")
+
+    # --- MODE: CREATE ---
+    elif st.session_state.add_item_mode == "create":
+        c_back, c_title = st.columns([0.2, 0.8])
+        with c_back:
+            if st.button("⬅ Back"):
+                st.session_state.add_item_mode = "browse"
+                st.rerun()
+        with c_title:
+             st.subheader(getattr(loc, "create_custom_item_title", "Create Custom Item"))
+        
+        _render_custom_item_form(controller, loc)
+
+def _render_custom_item_form(controller, loc):
+    # This logic mimics the original manual entry form you had
+    type_options = ["weapon", "armor", "shield", "accessory", "item"]
+    item_type = st.selectbox(
+        getattr(loc, "item_type_label", "Item Type"), 
+        type_options, 
+        format_func=lambda x: getattr(loc, f"item_{x}", x.title())
     )
 
-    if item_type:
+    with st.form("custom_item_form"):
         name = st.text_input(loc.page_view_item_name)
-        item_dict = {
+        cost = st.number_input(loc.page_view_item_cost, min_value=0, step=50)
+        quality = st.text_input(loc.page_view_item_quality, value=loc.item_no_quality)
+
+        new_item = None
+        input_dict = {
             "name": name.lower() if name else name,
-            "cost": st.number_input(loc.page_view_item_cost, value=0, step=50),
-            "quality": st.text_input(loc.page_view_item_quality, value=loc.item_no_quality),
-         }
-        input_dict = {}
-        if item_type.__name__ == "Weapon":
+            "cost": cost,
+            "quality": quality,
+        }
+
+        if item_type == "weapon":
             def accuracy_input():
                 st.write(loc.page_view_item_accuracy_check)
                 c1, c2 = st.columns(2)
                 with c1:
                     accuracy1 = st.selectbox("accuracy_selector_1",
-                                             [a for a in AttributeName],
-                                             key="acc-1",
-                                             label_visibility="hidden",
-                                             format_func=lambda x: AttributeName.to_alias(x, loc))
+                                            [a for a in AttributeName],
+                                            key="acc-1",
+                                            label_visibility="hidden",
+                                            format_func=lambda x: AttributeName.to_alias(x, loc))
                 with c2:
                     accuracy2 = st.selectbox("accuracy_selector_2",
-                                             [a for a in AttributeName],
-                                             key="acc-2",
-                                             label_visibility="hidden",
-                                             format_func=lambda x: AttributeName.to_alias(x, loc))
-
+                                            [a for a in AttributeName],
+                                            key="acc-2",
+                                            label_visibility="hidden",
+                                            format_func=lambda x: AttributeName.to_alias(x, loc))
                 return [accuracy1, accuracy2]
 
-            input_dict = {
+            specific_dict = {
                 "martial": st.checkbox(label=loc.page_view_item_martial),
                 "grip_type": st.pills(loc.page_view_item_grip, [t for t in GripType], format_func=lambda s: s.localized_name(loc), selection_mode="single"),
-                "range": st.pills(loc.page_view_item_range, [t for t in WeaponRange], format_func=lambda s: s.localized_name(loc),
-                                      selection_mode="single"),
-                "weapon_category": st.pills(loc.page_view_item_category, [t for t in WeaponCategory], format_func=lambda s: s.localized_name(loc),
-                                      selection_mode="single"),
-                "damage_type": st.pills(loc.page_view_item_damage_type, [t for t in DamageType],
-                                        format_func=lambda s: s.localized_name(loc), selection_mode="single"),
+                "range": st.pills(loc.page_view_item_range, [t for t in WeaponRange], format_func=lambda s: s.localized_name(loc), selection_mode="single"),
+                "weapon_category": st.pills(loc.page_view_item_category, [t for t in WeaponCategory], format_func=lambda s: s.localized_name(loc), selection_mode="single"),
+                "damage_type": st.pills(loc.page_view_item_damage_type, [t for t in DamageType], format_func=lambda s: s.localized_name(loc), selection_mode="single"),
                 "accuracy": accuracy_input(),
-                "bonus_accuracy": st.number_input(loc.page_view_item_bonus_accuracy, value=0, step=1),
-                "bonus_damage": st.number_input(loc.page_view_item_bonus_damage, value=0, step=1),
-                "bonus_defense": st.number_input(loc.page_view_item_bonus_defense, value=0, step=1),
-                "bonus_magic_defense": st.number_input(loc.page_view_item_bonus_magic_defense, value=0, step=1),
+                "damage": st.number_input(loc.page_view_item_bonus_damage, value=0, step=1), # Reusing label as damage base for simplicity or add localized string
+                "bonus_damage": 0, # st.number_input(loc.page_view_item_bonus_damage, value=0, step=1),
             }
+            combined_dict = input_dict | specific_dict
+            # The constructor logic in your original code:
+            if st.form_submit_button(loc.page_view_add_item_button, width="stretch"):
+                try:
+                    new_item = Weapon(**combined_dict)
+                    controller.add_item(new_item)
+                    st.toast(loc.page_view_added_item_to_equipment.format(name=combined_dict['name']))
+                    st.session_state.add_item_mode = "browse"
+                    st.rerun()
+                except Exception as e:
+                    st.error(e)
 
-        if item_type.__name__ == "Armor":
+        elif item_type == "armor":
             def defense_input():
                 def_type = st.pills(
                     loc.page_view_item_select_defense_type,
@@ -213,36 +352,73 @@ def add_item(controller: CharacterController, loc: LocNamespace):
                 elif def_type == loc.page_view_item_defense_type_flat:
                     defense = st.number_input(loc.page_view_item_provide_defense_value, value=0, step=1)
                     return defense
-
-            input_dict = {
+            
+            specific_dict = {
                 "martial": st.checkbox(label=loc.page_view_item_martial),
                 "defense": defense_input(),
                 "bonus_defense": st.number_input(loc.page_view_item_bonus_defense, value=0, step=1),
+                "magic_defense": st.number_input("Magic Defense (Fixed/Die)", value=0), # Placeholder label
                 "bonus_magic_defense": st.number_input(loc.page_view_item_bonus_magic_defense, value=0, step=1),
-                "bonus_initiative": st.number_input(loc.page_view_item_bonus_initiative, value=0, step=1),
+                "initiative_penalty": st.number_input(loc.page_view_item_bonus_initiative, value=0, step=1),
             }
+            combined_dict = input_dict | specific_dict
+            if st.form_submit_button(loc.page_view_add_item_button, width="stretch"):
+                try:
+                    new_item = Armor(**combined_dict)
+                    controller.add_item(new_item)
+                    st.toast(loc.page_view_added_item_to_equipment.format(name=combined_dict['name']))
+                    st.session_state.add_item_mode = "browse"
+                    st.rerun()
+                except Exception as e:
+                    st.error(e)
 
-        if item_type.__name__ == "Shield":
-            input_dict = {
+        elif item_type == "shield":
+            specific_dict = {
                 "martial": st.checkbox(label=loc.page_view_item_martial),
                 "bonus_defense": st.number_input(loc.page_view_item_bonus_defense, value=0, step=1),
                 "bonus_magic_defense": st.number_input(loc.page_view_item_bonus_magic_defense, value=0, step=1),
                 "bonus_initiative": st.number_input(loc.page_view_item_bonus_initiative, value=0, step=1),
             }
+            # For Shield constructor
+            combined_dict = input_dict | {
+                "defense_bonus": specific_dict["bonus_defense"],
+                "magic_defense_bonus": specific_dict["bonus_magic_defense"],
+                "initiative_bonus": specific_dict["bonus_initiative"],
+                "martial": specific_dict["martial"]
+            }
+            if st.form_submit_button(loc.page_view_add_item_button, width="stretch"):
+                try:
+                    new_item = Shield(**combined_dict)
+                    controller.add_item(new_item)
+                    st.toast(loc.page_view_added_item_to_equipment.format(name=combined_dict['name']))
+                    st.session_state.add_item_mode = "browse"
+                    st.rerun()
+                except Exception as e:
+                    st.error(e)
 
-    if st.button(loc.page_view_add_item_button, disabled=(not item_type)):
-        try:
-            combined_dict = item_dict | input_dict
-            new_item = item_type(
-                **combined_dict
-            )
-            controller.add_item(new_item)
-            st.toast(loc.page_view_added_item_to_equipment.format(name=combined_dict['name']))
-            st.rerun()
-        except Exception as e:
-            st.error(e)
-            st.warning(loc.page_view_error_adding_item, icon="🪨")
+        elif item_type == "accessory":
+             if st.form_submit_button(loc.page_view_add_item_button, width="stretch"):
+                try:
+                    new_item = Accessory(**input_dict)
+                    controller.add_item(new_item)
+                    st.toast(loc.page_view_added_item_to_equipment.format(name=input_dict['name']))
+                    st.session_state.add_item_mode = "browse"
+                    st.rerun()
+                except Exception as e:
+                    st.error(e)
 
+        elif item_type == "item":
+            if st.form_submit_button(loc.page_view_add_item_button, width="stretch"):
+                try:
+                    new_item = Item(**input_dict)
+                    controller.add_item(new_item)
+                    st.toast(loc.page_view_added_item_to_equipment.format(name=input_dict['name']))
+                    st.session_state.add_item_mode = "browse"
+                    st.rerun()
+                except Exception as e:
+                    st.error(e)
+
+# --------------------------------------------------------------------------------------
 
 def remove_item(controller: CharacterController, loc: LocNamespace):
     all_items = controller.character.inventory.backpack.all_items()
@@ -535,9 +711,9 @@ def display_equipped_item(controller: CharacterController,
         return
 
     if isinstance(item, Weapon):
-        icon = "⚔️"
+        icon = "⚔"
     elif isinstance(item, Shield):
-        icon = "🛡️"
+        icon = "🛡"
     elif isinstance(item, Armor):
         icon = "🧥"
     else:
@@ -554,8 +730,6 @@ def display_equipped_item(controller: CharacterController,
 
     # Columns setup
     c1, c2, c3, c4 = st.columns([0.3, 0.3, 0.3, 0.1]) if category != "accessory" else st.columns([0.3, 0.5, 0.1, 0.1])
-    # c1, c2, c3 = cols[0], cols[1], cols[2]
-    # c4 = cols[3] if len(cols) > 3 else None
 
     # Column 1: icon and name
     with c1:
@@ -647,4 +821,3 @@ def add_arcanum(controller: CharacterController, loc: LocNamespace):
         arcanum = selected_arcanum[0]
         controller.character.special.arcana.append(arcanum)
         st.rerun()
-
