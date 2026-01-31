@@ -6,36 +6,36 @@ import time
 from io import BytesIO
 from datetime import datetime
 
-# Define what to backup
-BACKUP_TARGETS = [
-    "fabula_charsheet/data",  # Database and saves
-    "fabula_charsheet/assets", # Custom content
-    "fabula_charsheet/pages",  # Code pages
+# Define what folders/files to backup
+BACKUP_SOURCES = [
+    "fabula_charsheet/data",
+    "fabula_charsheet/assets",
+    "fabula_charsheet/pages",
     "config.py"
 ]
 
 def render_admin_panel():
-    """Renders the Admin Panel in the sidebar if the user is authorized."""
+    """Renders the Admin Portal sidebar widget."""
     # Strict Access Control
     if st.session_state.get("username") != "ShinraEngineer":
         return
 
     with st.expander("🔐 Admin Portal", expanded=False):
         st.caption("System Management")
-        
-        # --- BACKUP SECTION ---
+
+        # --- BACKUP ---
         st.subheader("Backup")
-        if st.button("📦 Create System Snapshot", use_container_width=True):
-            # Create in-memory buffer
+        if st.button("📦 Create System Snapshot", width="stretch"):
             buffer = BytesIO()
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"society_backup_{timestamp}.tgz"
+            # New Naming Scheme: abyssalEngine_FileSysDB_Backup_VYYYYMMDD_HHMM.tgz
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+            filename = f"abyssalEngine_FileSysDB_Backup_V{timestamp}.tgz"
             
             try:
                 with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
-                    for target in BACKUP_TARGETS:
-                        if os.path.exists(target):
-                            tar.add(target)
+                    for source in BACKUP_SOURCES:
+                        if os.path.exists(source):
+                            tar.add(source)
                 
                 buffer.seek(0)
                 st.download_button(
@@ -43,33 +43,32 @@ def render_admin_panel():
                     data=buffer,
                     file_name=filename,
                     mime="application/gzip",
-                    use_container_width=True
+                    width="stretch"
                 )
-                st.success("Snapshot created!")
+                st.success(f"Snapshot created: {filename}")
             except Exception as e:
                 st.error(f"Backup failed: {e}")
 
         st.divider()
 
-        # --- RESTORE SECTION ---
+        # --- RESTORE ---
         st.subheader("Restore")
         uploaded_file = st.file_uploader("Upload Snapshot (.tgz)", type=["tgz", "tar.gz"])
         
-        if uploaded_file is not None:
-            st.warning("⚠️ This will overwrite current data/database!")
-            if st.button("🚨 EXECUTE RESTORE", type="primary", use_container_width=True):
+        if uploaded_file:
+            st.warning("⚠️ This will overwrite all data!")
+            if st.button("🚨 EXECUTE RESTORE", type="primary", width="stretch"):
                 try:
-                    # Save upload to temp
-                    with open("temp_restore.tgz", "wb") as f:
+                    with open("restore_temp.tgz", "wb") as f:
                         f.write(uploaded_file.getbuffer())
                     
-                    # Extract
-                    with tarfile.open("temp_restore.tgz", "r:gz") as tar:
+                    with tarfile.open("restore_temp.tgz", "r:gz") as tar:
                         tar.extractall(path=".")
                     
-                    os.remove("temp_restore.tgz")
-                    st.success("System Restored. Rebooting...")
+                    os.remove("restore_temp.tgz")
+                    st.success("Restored. Rebooting...")
                     time.sleep(2)
                     st.rerun()
                 except Exception as e:
                     st.error(f"Restore failed: {e}")
+

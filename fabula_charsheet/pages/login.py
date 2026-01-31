@@ -92,7 +92,7 @@ def login_page():
                     st.rerun()
 
             else:
-                st.header("📝 JOIN THE SOCIETY")
+                st.header("📝 FUEL THE ENGINE")
                 st.caption("Requirements: 8+ chars, Upper, Lower, Number, Symbol (@$!%*?&)")
                 
                 with st.form("register_form"):
