@@ -1,3 +1,6 @@
+# FILE: fabula_charsheet/pages/character_view/view.py
+# AUTHOR: Rose (Virtual Assistant) // SCook (Computer Systems Engineering)
+
 import sys
 import os
 import html
@@ -11,7 +14,7 @@ import config
 from data.saved_characters import SAVED_CHARS # NEW IMPORT: Persistence
 
 from data.models import Status, AttributeName, Weapon, GripType, WeaponCategory, \
-    WeaponRange, ClassName, LocNamespace, HeroicSkillName, PointName
+    WeaponRange, ClassName, LocNamespace, HeroicSkillName
 from pages.controller import CharacterController
 from pages.utils import WeaponTableWriter, ArmorTableWriter, SkillTableWriter, SpellTableWriter, DanceTableWriter, InventionTableWriter, \
     AccessoryTableWriter, ItemTableWriter, TherioformTableWriter, ShieldTableWriter, BondTableWriter, ArcanumTableWriter, \
@@ -189,98 +192,113 @@ def build(controller: CharacterController):
             writer = BondTableWriter(loc)
             writer.write_in_columns(controller.character.bonds, header=False)
 
-        # --- UPDATED POINTS COLUMN (Mobile Friendly) ---
+
         with points_col:
-            # HP BLOCK
-            with st.container():
-                st.write(f"**{loc.hp}** {controller.current_hp()} / {controller.max_hp()}")
-                st.progress(max((controller.current_hp() / controller.max_hp()), 0))
-                
-                # Mobile Layout: [Input] [ - ] [ + ] [ Reset ]
-                c_in, c_sub, c_add, c_res = st.columns([0.4, 0.2, 0.2, 0.2])
-                with c_in:
-                    hp_input = st.number_input("hp_input", min_value=0, label_visibility="collapsed", value=10, key="hp_in")
-                with c_sub:
-                    if st.button("－", key="sub_hp", width="stretch"):
-                        # Damage: Add to minus_hp
-                        controller.state.minus_hp = min(controller.max_hp(), controller.state.minus_hp + hp_input)
-                        st.rerun()
-                with c_add:
-                    if st.button("＋", key="add_hp", width="stretch"):
-                        # Heal: Subtract from minus_hp
-                        controller.state.minus_hp = max(0, controller.state.minus_hp - hp_input)
-                        st.rerun()
-                with c_res:
-                    if st.button("↺", key="reset_hp", help="Reset HP", width="stretch"):
-                        controller.state.minus_hp = 0
-                        st.rerun()
-            st.divider()
+            col1, col2, col3, col4, col5 = st.columns([0.5, 0.2, 0.1, 0.1, 0.1])
+            with col1:
+                st.markdown(
+                    """
+                    <style>
+                        .stProgress > div > div > div > div {
+                            background-color: green;
+                        }
+                    </style>""",
+                    unsafe_allow_html=True,
+                )
+                st.progress(
+                    max((controller.current_hp() / controller.max_hp()), 0),
+                    text=f"{loc.hp} {controller.current_hp()} / {controller.max_hp()}"
+                )
+                st.write("")
+                st.write("")
 
-            # MP BLOCK
-            with st.container():
-                st.write(f"**{loc.mp}** {controller.current_mp()} / {controller.max_mp()}")
-                st.progress(max((controller.current_mp() / controller.max_mp()), 0))
-                
-                c_in, c_sub, c_add, c_res = st.columns([0.4, 0.2, 0.2, 0.2])
-                with c_in:
-                    mp_input = st.number_input("mp_input", min_value=0, label_visibility="collapsed", value=10, key="mp_in")
-                with c_sub:
-                    if st.button("－", key="sub_mp", width="stretch"):
-                        controller.state.minus_mp = min(controller.max_mp(), controller.state.minus_mp + mp_input)
-                        st.rerun()
-                with c_add:
-                    if st.button("＋", key="add_mp", width="stretch"):
-                        controller.state.minus_mp = max(0, controller.state.minus_mp - mp_input)
-                        st.rerun()
-                with c_res:
-                    if st.button("↺", key="reset_mp", help="Reset MP", width="stretch"):
-                        controller.state.minus_mp = 0
-                        st.rerun()
-            st.divider()
+                st.progress(
+                    max((controller.current_mp() / controller.max_mp()), 0),
+                    text=f"{loc.mp} {controller.current_mp()} / {controller.max_mp()}"
+                )
+                st.write("")
+                st.write("")
 
-            # IP BLOCK
-            with st.container():
-                st.write(f"**{loc.ip}** {controller.current_ip()} / {controller.max_ip()}")
-                st.progress(max((controller.current_ip() / controller.max_ip()), 0))
-                
-                c_in, c_sub, c_add, c_res = st.columns([0.4, 0.2, 0.2, 0.2])
-                with c_in:
-                    ip_input = st.number_input("ip_input", min_value=0, label_visibility="collapsed", value=3, key="ip_in")
-                with c_sub:
-                    if st.button("－", key="sub_ip", width="stretch"):
-                        controller.state.minus_ip = min(controller.max_ip(), controller.state.minus_ip + ip_input)
-                        st.rerun()
-                with c_add:
-                    if st.button("＋", key="add_ip", width="stretch"):
-                        controller.state.minus_ip = max(0, controller.state.minus_ip - ip_input)
-                        st.rerun()
-                with c_res:
-                    if st.button("↺", key="reset_ip", help="Reset IP", width="stretch"):
-                        controller.state.minus_ip = 0
-                        st.rerun()
-            st.divider()
+                st.progress(
+                    max((controller.current_ip() / controller.max_ip()), 0),
+                    text=f"{loc.ip} {controller.current_ip()} / {controller.max_ip()}"
+                )
+            with col2:
+                hp_input = st.number_input("hp_input", min_value=0, label_visibility="hidden", value=10)
+                mp_input = st.number_input("mp_input", min_value=0, label_visibility="hidden", value=10)
+                ip_input = st.number_input("ip_input", min_value=0, label_visibility="hidden", value=3)
+            with col3:
+                st.write("")
+                if st.button("", icon=":material/add:", key="add_hp"):
+                    controller.state.minus_hp = max(0, controller.state.minus_hp - hp_input)
+                    st.rerun()
+                st.write("")
+                st.write("")
+                if st.button("", icon=":material/add:", key="add_mp"):
+                    controller.state.minus_mp = max(0, controller.state.minus_mp - mp_input)
+                    st.rerun()
+                st.write("")
+                st.write("")
+                if st.button("", icon=":material/add:", key="add_ip"):
+                    controller.state.minus_ip = max(0, controller.state.minus_ip - ip_input)
+                    st.rerun()
+                st.write("")
+                st.write("")
+            with col4:
+                st.write("")
+                if st.button("", icon=":material/remove:", key="subtract_hp"):
+                    controller.state.minus_hp = min(controller.max_hp(), controller.state.minus_hp + hp_input)
+                    st.rerun()
+                st.write("")
+                st.write("")
+                if st.button("", icon=":material/remove:", key="subtract_mp"):
+                    controller.state.minus_mp = min(controller.max_mp(), controller.state.minus_mp + mp_input)
+                    st.rerun()
+                st.write("")
+                st.write("")
+                if st.button("", icon=":material/remove:", key="subtract_ip"):
+                    controller.state.minus_ip = min(controller.max_ip(), controller.state.minus_ip + ip_input)
+                    st.rerun()
+                st.write("")
+                st.write("")
+            with col5:
+                st.write("")
+                if st.button("", icon=":material/laps:", key="reset_hp", help="Reset HP"):
+                    controller.state.minus_hp = 0
+                    st.rerun()
+                st.write("")
+                st.write("")
+                if st.button("", icon=":material/laps:", key="reset_mp", help="Reset MP"):
+                    controller.state.minus_mp = 0
+                    st.rerun()
+                st.write("")
+                st.write("")
+                if st.button("", icon=":material/laps:", key="reset_ip", help="Reset IP"):
+                    controller.state.minus_ip = 0
+                    st.rerun()
+                st.write("")
+                st.write("")
 
-            # POTIONS & TENT
             col1, col2, col3 = st.columns(3)
             with col1:
                 if st.button(loc.page_view_health_potion,
-                             disabled=not controller.can_use_potion(),
-                             width="stretch",
-                             ):
+                    disabled=not controller.can_use_potion(),
+                    width="stretch",
+                ):
                     controller.use_health_potion()
                     st.rerun()
             with col2:
                 if st.button(loc.page_view_mana_potion,
-                             disabled=not controller.can_use_potion(),
-                             width="stretch"
-                             ):
+                    disabled=not controller.can_use_potion(),
+                    width="stretch"
+                ):
                     controller.use_mana_potion()
                     st.rerun()
             with col3:
                 if st.button(loc.page_view_magic_tent,
-                             disabled=not controller.can_use_magic_tent(),
-                             width="stretch"
-                             ):
+                    disabled=not controller.can_use_magic_tent(),
+                    width="stretch"
+                ):
                     controller.use_magic_tent()
                     st.rerun()
 
@@ -314,7 +332,7 @@ def build(controller: CharacterController):
 
             show_martial(controller.character)
 
-        # ATTRIBUTES COLUMN (With Text Visibility Fix)
+
         with attributes_col:
             st.markdown(f"##### {loc.page_view_current_attributes}")
             att_col1, att_col2 = st.columns(2)
@@ -327,10 +345,8 @@ def build(controller: CharacterController):
                 col = col1 if idx < 3 else col2
                 with col:
                     checked = st.checkbox(stat.localized_name(loc), value=(stat in controller.state.statuses))
-                    if checked:
-                        controller.add_status(stat)
-                    else:
-                        controller.remove_status(stat)
+                    if checked: controller.add_status(stat)
+                    else: controller.remove_status(stat)
 
             # ... (Bonus Attributes Checkbox logic remains the same) ...
             st.markdown(f"##### {loc.page_view_bonus_to_attributes}")
@@ -338,8 +354,7 @@ def build(controller: CharacterController):
             for idx, attribute in enumerate(AttributeName):
                 col = col1 if idx < 2 else col2
                 with col:
-                    checked = st.checkbox(attribute.localized_name(loc),
-                                          value=(attribute in controller.state.improved_attributes))
+                    checked = st.checkbox(attribute.localized_name(loc), value=(attribute in controller.state.improved_attributes))
                     if checked and attribute not in controller.state.improved_attributes:
                         controller.state.improved_attributes.append(attribute)
                     if not checked and attribute in controller.state.improved_attributes:
@@ -448,8 +463,7 @@ def build(controller: CharacterController):
                         casting_skill = char_class.get_spell_skill()
                         can_add_spell = False
                         if casting_skill:
-                            can_add_spell = casting_skill.current_level > len(
-                                controller.character.get_spells_by_class(class_name))
+                            can_add_spell = casting_skill.current_level > len(controller.character.get_spells_by_class(class_name))
                         if st.button(
                                 loc.learn_spell_button,
                                 disabled=not can_add_spell,
@@ -465,7 +479,7 @@ def build(controller: CharacterController):
                     writer.columns = writer.chimerist_columns
                 writer.write_in_columns(spell_list)
 
-    # Equipment
+    #Equipment
     with tab4:
         col1, col2, col3, col4 = st.columns([0.2, 0.2, 0.2, 0.4])
         with col1:
@@ -563,14 +577,14 @@ def build(controller: CharacterController):
             st.divider()
 
         # --- PDF EXPORT SECTION (CUSTOM) ---
-        st.subheader("🛠 System Tools")
+        st.subheader("🛠️ System Tools")
         st.write("Export your character to a custom PDF sheet.")
 
         if st.button("📄 Generate Custom PDF"):
             try:
                 # Call the new generator
                 pdf_file = custom_pdf.create_custom_sheet(controller.character, loc)
-
+                
                 st.download_button(
                     label="📥 Download Character Sheet",
                     data=pdf_file,
@@ -578,11 +592,11 @@ def build(controller: CharacterController):
                     mime="application/pdf"
                 )
                 st.success("Custom PDF Generated successfully!")
-
+                
             except Exception as e:
                 st.error(f"Error generating PDF: {e}")
                 # Optional: Show full traceback if needed
-                # st.exception(e)
+                # st.exception(e) 
 
         st.divider()
 
@@ -594,7 +608,7 @@ def build(controller: CharacterController):
             # Explicit save to disk for persistence
             SAVED_CHARS.update_character(controller.character)
             st.toast("Character saved to disk!")
-
+            
     with col2:
         if st.button(loc.load_another_character_button):
             set_view_state(ViewState.load)
