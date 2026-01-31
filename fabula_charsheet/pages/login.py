@@ -1,7 +1,13 @@
 import streamlit as st
 import os
+import base64
 from data.database import DB
 from config import ASSETS_DIRECTORY
+
+def get_base64_image(image_path):
+    """Helper to convert image to base64 for HTML embedding"""
+    with open(image_path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode()
 
 def login_page():
     # --- CUSTOM CSS ---
@@ -30,17 +36,14 @@ def login_page():
         .app-subtitle {
             font-size: 1.2rem; font-weight: 400; color: #94a3b8; letter-spacing: 0.1em; text-align: center;
         }
-
-        /* FORCE IMAGE CENTERING */
-        /* This targets the img tag directly to force block centering */
-        div[data-testid="stImage"] img {
-            display: block;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        /* Ensure the container is full width to allow auto margins to work */
-        div[data-testid="stImage"] {
+        
+        /* This container forces the HTML image to center */
+        .logo-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
             width: 100%;
+            margin-bottom: 10px;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -52,12 +55,20 @@ def login_page():
     with col2:
         container = st.container()
         with container:
-            # --- BRANDING HEADER ---
+            # --- BRANDING HEADER (HTML INJECTION) ---
             logo_path = os.path.join(ASSETS_DIRECTORY, "logo.png")
             
             if os.path.exists(logo_path):
-                # We do NOT use columns here, letting the CSS 'margin: auto' handle the centering
-                st.image(logo_path, width=150)
+                img_b64 = get_base64_image(logo_path)
+                # We inject the image directly as HTML to force centering
+                st.markdown(
+                    f"""
+                    <div class="logo-container">
+                        <img src="data:image/png;base64,{img_b64}" width="150" style="border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
             else:
                 st.markdown("<div style='text-align:center; font-size:4rem;'>💎</div>", unsafe_allow_html=True)
 
@@ -77,7 +88,6 @@ def login_page():
                     username = st.text_input("Username")
                     password = st.text_input("Password", type="password")
                     
-                    # Login Button
                     if st.form_submit_button("LOGIN", width="stretch"):
                         uid, error = DB.login_user(username, password)
                         if uid:
@@ -92,6 +102,7 @@ def login_page():
                     st.rerun()
 
             else:
+                # UPDATED TEXT HERE
                 st.header("📝 FUEL THE MACHINE")
                 st.caption("Requirements: 8+ chars, Upper, Lower, Number, Symbol (@$!%*?&)")
                 
@@ -100,7 +111,8 @@ def login_page():
                     new_pass = st.text_input("Password", type="password")
                     ver_pass = st.text_input("Verify Password", type="password")
                     
-                    if st.form_submit_button("REGISTER AGENT", width="stretch"):
+                    # UPDATED TEXT HERE
+                    if st.form_submit_button("Register Local Account", width="stretch"):
                         success, msg = DB.register_user(new_user, new_pass, ver_pass)
                         if success:
                             st.success(msg)
