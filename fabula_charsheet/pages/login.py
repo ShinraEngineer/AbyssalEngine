@@ -4,17 +4,14 @@ from data.database import DB
 from config import ASSETS_DIRECTORY
 
 def login_page():
-    # --- CUSTOM RED/DARK THEME CSS ---
+    # --- CUSTOM CSS ---
     st.markdown("""
         <style>
         .stApp { background-color: #0f172a; }
         
-        /* Input Fields */
         div[data-baseweb="input"] > div {
             background-color: #1e293b; color: #e2e8f0; border-color: #334155;
         }
-        
-        /* Buttons */
         div[data-testid="stButton"] > button {
             background-color: #991b1b; color: white; border: none; width: 100%; font-weight: bold;
         }
@@ -24,9 +21,8 @@ def login_page():
         
         h1, h2, h3 { color: #f87171; text-align: center; }
         
-        /* Centering Class for Title */
         .title-container {
-            display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 2rem;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 2rem; margin-top: 1rem;
         }
         .app-title {
             font-size: 2.5rem; font-weight: 800; color: #f87171; line-height: 1.2; text-align: center;
@@ -36,13 +32,15 @@ def login_page():
         }
 
         /* FORCE IMAGE CENTERING */
-        div[data-testid="stImage"] {
-            display: flex;
-            justify-content: center;
-            width: 100%;
+        /* This targets the img tag directly to force block centering */
+        div[data-testid="stImage"] img {
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
         }
-        div[data-testid="stImage"] > img {
-            max-width: 150px; /* Ensure size matches requirement */
+        /* Ensure the container is full width to allow auto margins to work */
+        div[data-testid="stImage"] {
+            width: 100%;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -57,13 +55,12 @@ def login_page():
             # --- BRANDING HEADER ---
             logo_path = os.path.join(ASSETS_DIRECTORY, "logo.png")
             
-            # Logo (Now centered by CSS)
             if os.path.exists(logo_path):
+                # We do NOT use columns here, letting the CSS 'margin: auto' handle the centering
                 st.image(logo_path, width=150)
             else:
                 st.markdown("<div style='text-align:center; font-size:4rem;'>💎</div>", unsafe_allow_html=True)
 
-            # Title
             st.markdown(
                 """
                 <div class="title-container">
@@ -79,9 +76,9 @@ def login_page():
                 with st.form("login_form"):
                     username = st.text_input("Username")
                     password = st.text_input("Password", type="password")
-                    submitted = st.form_submit_button("LOGIN")
                     
-                    if submitted:
+                    # Login Button
+                    if st.form_submit_button("LOGIN", width="stretch"):
                         uid, error = DB.login_user(username, password)
                         if uid:
                             st.session_state.user_id = uid
@@ -90,7 +87,7 @@ def login_page():
                         else:
                             st.error(error)
                 
-                if st.button("Create New Account", type="secondary"):
+                if st.button("Create New Account", type="secondary", width="stretch"):
                     st.session_state.auth_view = 'register'
                     st.rerun()
 
@@ -102,9 +99,8 @@ def login_page():
                     new_user = st.text_input("Username")
                     new_pass = st.text_input("Password", type="password")
                     ver_pass = st.text_input("Verify Password", type="password")
-                    submitted = st.form_submit_button("REGISTER AGENT")
                     
-                    if submitted:
+                    if st.form_submit_button("REGISTER AGENT", width="stretch"):
                         success, msg = DB.register_user(new_user, new_pass, ver_pass)
                         if success:
                             st.success(msg)
@@ -112,6 +108,7 @@ def login_page():
                         else:
                             st.error(msg)
                 
-                if st.button("Back to Login", type="secondary"):
+                if st.button("Back to Login", type="secondary", width="stretch"):
                     st.session_state.auth_view = 'login'
                     st.rerun()
+

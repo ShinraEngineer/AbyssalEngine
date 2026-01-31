@@ -15,24 +15,43 @@ def render_dice_roller(controller=None):
             if key not in st.session_state:
                 st.session_state[key] = 0
 
-        # --- 2. ATTRIBUTE BUTTONS (PILLS) ---
+        # --- 2. ATTRIBUTE SELECTORS (Dual Slots) ---
         selected_attrs = []
         if controller:
-            st.caption("Check (Max 2)")
-            attr_opts = [a for a in AttributeName]
+            st.caption("Check (Select 1 or 2)")
             
-            # Using pills for "Buttons" feel
-            selected_attrs = st.pills(
-                "Attributes",
-                options=attr_opts,
-                selection_mode="multi",
-                label_visibility="collapsed",
-                format_func=lambda x: f"{x.name.title()} (d{getattr(controller.character, x.name).current})"
-            )
+            # Helper to format the dropdown options
+            # We add a "None" option to allow single attribute checks
+            attr_opts = [None] + [a for a in AttributeName]
             
-            if len(selected_attrs) > 2:
-                st.error("Max 2!")
-                # Slice logic doesn't work well with pill state return, so we warn instead
+            def fmt_func(x):
+                if x is None: return "-"
+                val = getattr(controller.character, x.name).current
+                return f"{x.name.title()} (d{val})"
+
+            # Two separate columns for the dropdowns
+            c_att1, c_att2 = st.columns(2)
+            
+            with c_att1:
+                att1 = st.selectbox(
+                    "Attr 1", 
+                    options=attr_opts, 
+                    format_func=fmt_func, 
+                    key="roll_att_1",
+                    label_visibility="collapsed"
+                )
+            
+            with c_att2:
+                att2 = st.selectbox(
+                    "Attr 2", 
+                    options=attr_opts, 
+                    format_func=fmt_func, 
+                    key="roll_att_2",
+                    label_visibility="collapsed"
+                )
+            
+            if att1: selected_attrs.append(att1)
+            if att2: selected_attrs.append(att2)
 
         # --- 3. DICE ICONS ---
         st.caption("Manual Dice Pool")
@@ -43,7 +62,7 @@ def render_dice_roller(controller=None):
             for i, d in enumerate(chunk):
                 with cols[i]:
                     count = st.session_state[f"dice_count_d{d}"]
-                    st.markdown(f"**d{d}** <span style='color:orange; font-size:0.8em'>x{count}</span>", unsafe_allow_html=True)
+                    st.markdown(f"**d{d}** :orange[x{count}]")
                     
                     b_sub, b_add = st.columns(2)
                     with b_sub:
@@ -68,8 +87,11 @@ def render_dice_roller(controller=None):
             do_roll = st.button("🎲 ROLL", type="primary", width="stretch")
         with c_clear:
             if st.button("Clear", width="stretch"):
+                # Clear dice counts
                 for d in dice_types:
                     st.session_state[f"dice_count_d{d}"] = 0
+                # We can't easily clear selectboxes without session state callbacks, 
+                # but clicking "Clear" mainly resets the manual dice pool which is the busy part.
                 st.rerun()
 
         # --- 6. ROLL LOGIC ---
@@ -79,11 +101,14 @@ def render_dice_roller(controller=None):
             
             # Attribute Rolls
             if selected_attrs and controller:
-                # Enforce limit here just in case
-                for attr in selected_attrs[:2]:
+                for attr in selected_attrs:
                     die_size = getattr(controller.character, attr.name).current
                     roll = random.randint(1, die_size)
-                    results_log.append(f"**{attr.name.title()} (d{die_size})**: :orange[{roll}]")
+                    # Highlight max rolls
+                    color = ":green" if roll == die_size else ":orange"
+                    if roll == 1: color = ":red"
+                    
+                    results_log.append(f"**{attr.name.title()} (d{die_size})**: {color}[{roll}]")
                     total += roll
             
             # Manual Dice Rolls
@@ -92,7 +117,8 @@ def render_dice_roller(controller=None):
                 if count > 0:
                     rolls = [random.randint(1, d) for _ in range(count)]
                     subtotal = sum(rolls)
-                    roll_str = ", ".join(map(str, rolls))
+                    # Format individual die results
+                    roll_str = ", ".join([str(r) for r in rolls])
                     results_log.append(f"**{count}d{d}**: `{roll_str}`")
                     total += subtotal
             
@@ -117,3 +143,4 @@ def render_dice_roller(controller=None):
                 with st.expander("Breakdown", expanded=True):
                     for line in results_log:
                         st.markdown(line)
+
